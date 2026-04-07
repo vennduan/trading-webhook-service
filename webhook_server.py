@@ -110,12 +110,22 @@ def webhook():
     # 风控检查
     try:
         print(f"[DEBUG] calling check_risk...", flush=True)
-        check_risk(
-            symbol=params["symbol"],
-            direction=params["direction"],
-            amount=params["amount"],
-            rate=params["rate"],
-        )
+        try:
+            check_risk(
+                symbol=params["symbol"],
+                direction=params["direction"],
+                amount=params["amount"],
+                rate=params["rate"],
+            )
+        except RiskLimitExceeded:
+            raise  # re-raise to outer handler
+        except Exception as e:
+            import sys
+            sys.stderr.write(f"[ERROR] check_risk threw: {type(e).__name__}: {e}\n")
+            sys.stderr.flush()
+            import traceback; traceback.print_exc()
+            sys.stderr.flush()
+            raise
         print(f"[DEBUG] check_risk passed", flush=True)
     except RiskLimitExceeded as e:
         return jsonify({
@@ -173,9 +183,12 @@ def webhook():
         }), 200
 
     except Exception as e:
-        print(f"[ERROR] Trade execution failed: {e}", flush=True)
+        import sys
+        sys.stderr.write(f"[ERROR] Trade execution failed: {e}\n")
+        sys.stderr.flush()
         import traceback
         traceback.print_exc()
+        sys.stderr.flush()
         _logger.exception(f"Trade execution failed: {e}")
         return jsonify({
             "status": "error",
