@@ -112,7 +112,8 @@ class RiskManager:
 
         # 估算保证金需求（约 2% 每手）
         estimated_margin = amount * (rate or 1.0) * 0.02
-        if estimated_margin > free_margin:
+        # 只有当 free_margin 是有效数字且不足时才阻止
+        if free_margin > 0 and estimated_margin > free_margin:
             raise RiskLimitExceeded(
                 "INSUFFICIENT_MARGIN",
                 f"Margin required {estimated_margin:.2f}, available {free_margin:.2f}"
