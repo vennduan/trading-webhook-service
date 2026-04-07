@@ -150,7 +150,7 @@ class SessionManager:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = cls()
-        return cls
+        return cls._instance
 
 
 @contextmanager
