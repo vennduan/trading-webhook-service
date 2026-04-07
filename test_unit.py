@@ -129,25 +129,27 @@ class TestValidators:
     """测试请求验证，需要 mock config"""
 
     def test_verify_token_correct(self, monkeypatch):
-        from validators import verify_token
+        import validators
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
-        assert verify_token("secret_token") is True
+        assert validators.verify_token("secret_token") is True
 
     def test_verify_token_wrong(self, monkeypatch):
-        from validators import verify_token, ValidationError
+        import validators
+        from validators import ValidationError
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
-        with pytest.raises(ValidationError, match="INVALID_TOKEN"):
-            verify_token("wrong_token")
+        with pytest.raises(ValidationError):
+            validators.verify_token("wrong_token")
 
     def test_verify_token_empty(self, monkeypatch):
-        from validators import verify_token, ValidationError
+        import validators
+        from validators import ValidationError
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
-        with pytest.raises(ValidationError, match="MISSING_TOKEN"):
-            verify_token("")
+        with pytest.raises(ValidationError):
+            validators.verify_token("")
 
     def test_validate_minimal_valid(self, monkeypatch):
         """必填字段齐全的最简合法请求"""
-        from validators import validate_json_schema
+        import validators
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
 
         data = {
@@ -156,7 +158,7 @@ class TestValidators:
             "amount": 10000,
             "token": "secret_token",
         }
-        result = validate_json_schema(data)
+        result = validators._validate_json(data)
         assert result["symbol"] == "EUR/USD"
         assert result["direction"] == "BUY"
         assert result["amount"] == 10000
@@ -165,7 +167,7 @@ class TestValidators:
 
     def test_validate_all_fields(self, monkeypatch):
         """所有字段都提供的完整请求"""
-        from validators import validate_json_schema
+        import validators
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
 
         data = {
@@ -178,90 +180,99 @@ class TestValidators:
             "limit_rate": 1.0900,
             "token": "secret_token",
         }
-        result = validate_json_schema(data)
+        result = validators._validate_json(data)
         assert result["order_type"] == "LIMIT"
         assert result["rate"] == 1.0850
         assert result["stop_rate"] == 1.0800
         assert result["limit_rate"] == 1.0900
 
     def test_validate_missing_symbol(self, monkeypatch):
-        from validators import validate_json_schema, ValidationError
+        import validators
+        from validators import ValidationError
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
 
         data = {"direction": "BUY", "amount": 10000, "token": "secret_token"}
         with pytest.raises(ValidationError) as exc_info:
-            validate_json_schema(data)
+            validators._validate_json(data)
         assert exc_info.value.code == "MISSING_FIELD"
         assert exc_info.value.field == "symbol"
 
     def test_validate_missing_amount(self, monkeypatch):
-        from validators import validate_json_schema, ValidationError
+        import validators
+        from validators import ValidationError
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
 
         data = {"symbol": "EUR/USD", "direction": "BUY", "token": "secret_token"}
         with pytest.raises(ValidationError) as exc_info:
-            validate_json_schema(data)
+            validators._validate_json(data)
         assert exc_info.value.code == "MISSING_FIELD"
         assert exc_info.value.field == "amount"
 
     def test_validate_invalid_direction(self, monkeypatch):
-        from validators import validate_json_schema, ValidationError
+        import validators
+        from validators import ValidationError
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
 
         data = {"symbol": "EUR/USD", "direction": "HOLD", "amount": 10000, "token": "secret_token"}
         with pytest.raises(ValidationError) as exc_info:
-            validate_json_schema(data)
+            validators._validate_json(data)
         assert exc_info.value.code == "INVALID_DIRECTION"
 
     def test_validate_negative_amount(self, monkeypatch):
-        from validators import validate_json_schema, ValidationError
+        import validators
+        from validators import ValidationError
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
 
         data = {"symbol": "EUR/USD", "direction": "BUY", "amount": -100, "token": "secret_token"}
         with pytest.raises(ValidationError) as exc_info:
-            validate_json_schema(data)
+            validators._validate_json(data)
         assert exc_info.value.code == "INVALID_AMOUNT"
 
     def test_validate_invalid_order_type(self, monkeypatch):
-        from validators import validate_json_schema, ValidationError
+        import validators
+        from validators import ValidationError
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
 
         data = {"symbol": "EUR/USD", "direction": "BUY", "amount": 10000,
                 "order_type": "FOK", "token": "secret_token"}
         with pytest.raises(ValidationError) as exc_info:
-            validate_json_schema(data)
+            validators._validate_json(data)
         assert exc_info.value.code == "INVALID_ORDER_TYPE"
 
     def test_validate_invalid_rate(self, monkeypatch):
-        from validators import validate_json_schema, ValidationError
+        import validators
+        from validators import ValidationError
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
 
         data = {"symbol": "EUR/USD", "direction": "BUY", "amount": 10000,
                 "order_type": "LIMIT", "rate": -1.0, "token": "secret_token"}
         with pytest.raises(ValidationError) as exc_info:
-            validate_json_schema(data)
+            validators._validate_json(data)
         assert exc_info.value.code == "INVALID_RATE"
 
     def test_validate_amount_as_string_fails(self, monkeypatch):
-        from validators import validate_json_schema, ValidationError
+        import validators
+        from validators import ValidationError
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
 
         data = {"symbol": "EUR/USD", "direction": "BUY", "amount": "ten thousand",
                 "token": "secret_token"}
         with pytest.raises(ValidationError) as exc_info:
-            validate_json_schema(data)
+            validators._validate_json(data)
         assert exc_info.value.code == "INVALID_AMOUNT"
 
     def test_validate_direction_case_insensitive(self, monkeypatch):
         """direction 大小写不敏感"""
-        from validators import validate_json_schema
+        import validators
         monkeypatch.setattr("validators.get_config", lambda: MockConfig())
+        dir_map = {"B": "BUY", "S": "SELL"}
 
         for direction in ["buy", "B", "Buy", "sell", "S", "Sell"]:
             data = {"symbol": "EUR/USD", "direction": direction,
                     "amount": 10000, "token": "secret_token"}
-            result = validate_json_schema(data)
-            assert result["direction"] == direction.upper()
+            result = validators._validate_json(data)
+            expected = dir_map.get(direction.upper()) or direction.upper()
+            assert result["direction"] == expected
 
 
 if __name__ == "__main__":

@@ -80,6 +80,9 @@ def validate_message(data: Any) -> Dict[str, Any]:
         if "direction" not in parsed:
             raise ValidationError("MISSING_FIELD", "direction not found in message", "direction")
         direction = parsed["direction"].upper()
+        direction_map = {"B": "BUY", "S": "SELL"}
+        if direction in direction_map:
+            direction = direction_map[direction]
         if direction not in ("BUY", "SELL"):
             raise ValidationError("INVALID_DIRECTION", f"Invalid direction: {direction}", "direction")
 
@@ -127,6 +130,10 @@ def _validate_json(data: Dict[str, Any]) -> Dict[str, Any]:
         raise ValidationError("INVALID_SYMBOL", f"Invalid symbol format: {symbol}", "symbol")
 
     direction = str(data["direction"]).strip().upper()
+    # 接受全写 BUY/SELL 或单字母 B/S
+    direction_map = {"B": "BUY", "S": "SELL"}
+    if direction in direction_map:
+        direction = direction_map[direction]
     if direction not in ("BUY", "SELL"):
         raise ValidationError("INVALID_DIRECTION", f"Invalid direction: {direction}, must be BUY or SELL", "direction")
 

@@ -109,12 +109,12 @@ def get_positions(account_id: Optional[str] = None) -> List[Dict[str, Any]]:
 
     fx = sm.fx
     trades_table = fx.get_table(ForexConnect.TRADES)
-    reader = fx.session.response_reader_factory.create_trades_table_reader(
+    reader = fx.session.response_reader_factory.create_reader(
         trades_table.get_refresh_response()
     )
 
     positions = []
-    for i in range(reader.count):
+    for i in range(reader.size):
         row = reader.get_row(i)
         if account_id and row.account_id != account_id:
             continue
@@ -139,12 +139,12 @@ def get_orders(account_id: Optional[str] = None) -> List[Dict[str, Any]]:
 
     fx = sm.fx
     orders_table = fx.get_table(ForexConnect.ORDERS)
-    reader = fx.session.response_reader_factory.create_orders_table_reader(
+    reader = fx.session.response_reader_factory.create_reader(
         orders_table.get_refresh_response()
     )
 
     orders = []
-    for i in range(reader.count):
+    for i in range(reader.size):
         row = reader.get_row(i)
         if account_id and row.account_id != account_id:
             continue

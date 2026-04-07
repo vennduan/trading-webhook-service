@@ -70,11 +70,12 @@ def is_valid_symbol(symbol: str) -> bool:
     if not symbol:
         return False
     s = symbol.strip().upper()
-    # 允许的格式: EUR/USD, NATGAS, XAU/USD
+    # 允许的格式: EUR/USD, NATGAS, GER30, XAU/USD
     if "/" in s:
         parts = s.split("/")
         return len(parts) == 2 and all(p.isalpha() for p in parts)
-    return s.isalpha()
+    # 非slash符号：必须包含数字 或 长度>3（排除单纯的3字母货币代码如EUR）
+    return s.isalnum() and len(s) > 3
 
 
 def format_for_display(symbol: str) -> str:
