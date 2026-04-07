@@ -46,7 +46,7 @@ def parse_tradingview_text(message: str) -> Dict[str, Any]:
     m = re.search(r'订单([A-Za-z]+)@(\d+)', message)
     if m:
         result["direction"] = m.group(1).upper()
-        result["amount"] = int(m.group(2)) * 1000  # 1手=1000 units
+        result["amount"] = int(m.group(2))
 
     # 提取品种: 成交EUR/USD 或 成交XAUUSD
     m2 = re.search(r'成交([A-Za-z]+/[A-Za-z]+|[A-Za-z]{3,6})', message)
