@@ -11,7 +11,7 @@ from flask import Flask, request, jsonify
 from config import get_config
 from logger import setup_logger, set_request_id, clear_request_id, get_logger, mask_sensitive
 from session_manager import get_session
-from validators import validate_json_schema, ValidationError
+from validators import validate_message, ValidationError
 from risk_manager import check_risk, record_trade, RiskLimitExceeded
 from trading import execute_trade, get_account
 
@@ -82,20 +82,29 @@ def webhook():
     """
     cfg = get_config()
 
-    # 解析 JSON
+    # 解析请求体：优先 JSON，失败则用纯文本
     try:
-        data = request.get_json(force=True, silent=False)
+        data = request.get_json(force=True, silent=True)
     except Exception:
-        return jsonify({
-            "status": "error",
-            "code": "INVALID_JSON",
-            "message": "Failed to parse JSON body",
-        }), 400
+        data = None
+
+    # 如果 JSON 解析失败，尝试获取原始文本
+    if data is None:
+        raw = request.get_data(as_text=True)
+        if raw:
+            _logger.info(f"Webhook received (text): {raw[:100]}")
+            data = raw
+        else:
+            return jsonify({
+                "status": "error",
+                "code": "INVALID_JSON",
+                "message": "Empty request body",
+            }), 400
 
     _logger.info(f"Webhook received: {data}")
 
-    # 验证请求
-    params = validate_json_schema(data)
+    # 验证请求（自动识别 JSON 或纯文本）
+    params = validate_message(data)
 
     # 风控检查
     try:
