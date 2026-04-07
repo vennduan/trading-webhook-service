@@ -105,15 +105,18 @@ def webhook():
 
     # 验证请求（自动识别 JSON 或纯文本）
     params = validate_message(data)
+    print(f"[DEBUG] params validated: {params}")
 
     # 风控检查
     try:
+        print(f"[DEBUG] calling check_risk...")
         check_risk(
             symbol=params["symbol"],
             direction=params["direction"],
             amount=params["amount"],
             rate=params["rate"],
         )
+        print(f"[DEBUG] check_risk passed")
     except RiskLimitExceeded as e:
         return jsonify({
             "status": "error",
@@ -124,7 +127,9 @@ def webhook():
     # 执行交易
     try:
         # 确保 FXCM 连接
+        print(f"[DEBUG] getting session...")
         sm = get_session()
+        print(f"[DEBUG] session: {sm}, connected: {sm.is_connected()}")
         if not sm.ensure_connected():
             return jsonify({
                 "status": "error",
@@ -133,6 +138,7 @@ def webhook():
             }), 503
 
         # 核心：下单
+        print(f"[DEBUG] calling execute_trade...")
         result = execute_trade(
             symbol=params["symbol"],
             direction=params["direction"],
