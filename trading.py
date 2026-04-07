@@ -169,11 +169,8 @@ def get_orders(account_id: Optional[str] = None) -> List[Dict[str, Any]]:
 def _get_account_and_offer(symbol: str, account_id: Optional[str] = None):
     """获取账户和报价，内部用"""
     fxcm_symbol = tv_to_fxcm(symbol)
-    print(f"[DEBUG] _get_account_and_offer: symbol={symbol} -> fxcm_symbol={fxcm_symbol}", flush=True)
     account = get_account(account_id)
-    print(f"[DEBUG] got account: {account['account_id']}", flush=True)
     offer = get_offer(fxcm_symbol)
-    print(f"[DEBUG] got offer: {offer}", flush=True)
     if offer is None:
         raise ValueError(f"Invalid symbol: {symbol}")
     return account, offer
@@ -208,14 +205,10 @@ def place_market_order(
     sm = get_session()
     sm.ensure_connected()
 
-    print(f"[DEBUG] place_market_order: symbol={symbol}, direction={direction}, amount={amount}", flush=True)
-
     account, offer = _get_account_and_offer(symbol, account_id)
-    print(f"[DEBUG] got offer: {offer}", flush=True)
 
     fx = sm.fx
     fxcm_symbol = tv_to_fxcm(symbol)
-    print(f"[DEBUG] fxcm_symbol={fxcm_symbol}, offer_id={offer['offer_id']}, account_id={account['account_id']}", flush=True)
 
     buy_sell = fxcorepy.Constants.BUY if direction.upper() == "BUY" else fxcorepy.Constants.SELL
 
@@ -229,9 +222,7 @@ def place_market_order(
         RATE=offer["ask"] if buy_sell == fxcorepy.Constants.BUY else offer["bid"],
     )
 
-    print(f"[DEBUG] sending OM order request: buy_sell={buy_sell}, amount={amount}", flush=True)
     resp = fx.send_request(request)
-    print(f"[DEBUG] response: order_id={resp.order_id}", flush=True)
     order_id = resp.order_id
 
     _trade_logger.info(
@@ -241,7 +232,6 @@ def place_market_order(
 
     return {
         "order_id": order_id,
-        "status": resp.status,
         "symbol": symbol,
         "direction": direction,
         "amount": amount,

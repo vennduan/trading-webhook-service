@@ -42,8 +42,6 @@ def parse_tradingview_text(message: str) -> Dict[str, Any]:
     result = {}
 
     # 打印原始消息，方便调试
-    print(f"[DEBUG] Raw message: {message}")
-
     # 提取方向和手数: 订单BUY@1  或 订单buy@2
     m = re.search(r'订单([A-Za-z]+)@(\d+)', message)
     if m:
@@ -60,7 +58,6 @@ def parse_tradingview_text(message: str) -> Dict[str, Any]:
     if m3:
         result["position_size"] = int(m3.group(1))
 
-    print(f"[DEBUG] Parsed result: {result}")
     return result
 
 

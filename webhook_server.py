@@ -105,28 +105,15 @@ def webhook():
 
     # 验证请求（自动识别 JSON 或纯文本）
     params = validate_message(data)
-    print(f"[DEBUG] params validated: {params}", flush=True)
 
     # 风控检查
     try:
-        print(f"[DEBUG] calling check_risk...", flush=True)
-        try:
-            check_risk(
-                symbol=params["symbol"],
-                direction=params["direction"],
-                amount=params["amount"],
-                rate=params["rate"],
-            )
-        except RiskLimitExceeded:
-            raise  # re-raise to outer handler
-        except Exception as e:
-            import sys
-            sys.stderr.write(f"[ERROR] check_risk threw: {type(e).__name__}: {e}\n")
-            sys.stderr.flush()
-            import traceback; traceback.print_exc()
-            sys.stderr.flush()
-            raise
-        print(f"[DEBUG] check_risk passed", flush=True)
+        check_risk(
+            symbol=params["symbol"],
+            direction=params["direction"],
+            amount=params["amount"],
+            rate=params["rate"],
+        )
     except RiskLimitExceeded as e:
         return jsonify({
             "status": "error",
@@ -137,9 +124,7 @@ def webhook():
     # 执行交易
     try:
         # 确保 FXCM 连接
-        print(f"[DEBUG] getting session...", flush=True)
         sm = get_session()
-        print(f"[DEBUG] session: {sm}, connected: {sm.is_connected()}", flush=True)
         if not sm.ensure_connected():
             return jsonify({
                 "status": "error",
@@ -148,7 +133,6 @@ def webhook():
             }), 503
 
         # 核心：下单
-        print(f"[DEBUG] calling execute_trade...", flush=True)
         result = execute_trade(
             symbol=params["symbol"],
             direction=params["direction"],
@@ -183,12 +167,6 @@ def webhook():
         }), 200
 
     except Exception as e:
-        import sys
-        sys.stderr.write(f"[ERROR] Trade execution failed: {e}\n")
-        sys.stderr.flush()
-        import traceback
-        traceback.print_exc()
-        sys.stderr.flush()
         _logger.exception(f"Trade execution failed: {e}")
         return jsonify({
             "status": "error",
