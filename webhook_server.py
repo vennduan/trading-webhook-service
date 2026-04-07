@@ -167,6 +167,9 @@ def webhook():
         }), 200
 
     except Exception as e:
+        print(f"[ERROR] Trade execution failed: {e}")
+        import traceback
+        traceback.print_exc()
         _logger.exception(f"Trade execution failed: {e}")
         return jsonify({
             "status": "error",
