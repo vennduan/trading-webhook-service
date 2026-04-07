@@ -64,13 +64,13 @@ def get_account(account_id: Optional[str] = None) -> Dict[str, Any]:
         account = reader.get_row(0)
 
     return {
-        "account_id": account.account_id,
-        "balance": account.balance,
-        "equity": account.equity,
-        "margin": account.margin,
-        "free_margin": account.free_margin,
-        "margin_level": account.margin_level,
-        "currency": account.currency,
+        "account_id": account.get_cell(0),
+        "balance": account.get_cell(3),
+        "equity": account.get_cell(4),
+        "margin": account.get_cell(5),
+        "free_margin": account.get_cell(6),
+        "margin_level": None,
+        "currency": "USD",
     }
 
 
@@ -83,18 +83,22 @@ def get_offer(symbol: str) -> Optional[Dict[str, Any]]:
     fx = sm.fx
     fxcm_symbol = tv_to_fxcm(symbol)
 
-    offer = Common.get_offer(fx, fxcm_symbol)
-    if offer is None:
-        return None
+    login_rules = fx.login_rules
+    offers_response = login_rules.get_table_refresh_response(ForexConnect.OFFERS)
+    reader = fx.session.response_reader_factory.create_reader(offers_response)
 
-    return {
-        "offer_id": offer.offer_id,
-        "instrument": offer.instrument,
-        "bid": offer.bid,
-        "ask": offer.ask,
-        "pip_cost": offer.pip_cost,
-        "trade_precision": offer.trade_precision,
-    }
+    for i in range(reader.size):
+        row = reader.get_row(i)
+        if str(row.get_cell(1)) == fxcm_symbol:
+            return {
+                "offer_id": row.get_cell(0),
+                "instrument": row.get_cell(1),
+                "bid": row.get_cell(3),
+                "ask": row.get_cell(4),
+                "pip_cost": row.get_cell(11),
+                "trade_precision": row.get_cell(14),
+            }
+    return None
 
 
 @retry(max_attempts=2)
