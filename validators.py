@@ -37,9 +37,12 @@ def verify_token(token: str) -> bool:
 def parse_tradingview_text(message: str) -> Dict[str, Any]:
     """
     解析 TradingView Pine Script 填充后的纯文本消息
-    格式: 订单BUY@1成交EUR/USD。新策略仓位1
+    格式: Ripster EMA Clouds AI Strategy v1 (...)订单BUY@1成交EUR/USD。新策略仓位1
     """
     result = {}
+
+    # 打印原始消息，方便调试
+    print(f"[DEBUG] Raw message: {message}")
 
     # 提取方向和手数: 订单BUY@1  或 订单SELL@10
     m = re.search(r'订单([A-Z]+)@(\d+)', message)
@@ -57,6 +60,7 @@ def parse_tradingview_text(message: str) -> Dict[str, Any]:
     if m3:
         result["position_size"] = int(m3.group(1))
 
+    print(f"[DEBUG] Parsed result: {result}")
     return result
 
 

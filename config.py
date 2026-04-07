@@ -7,86 +7,77 @@
 import os
 import json
 from pathlib import Path
-from typing import Optional
 
 
 BASE_DIR = Path(__file__).parent.resolve()
 CONFIG_FILE = BASE_DIR / "config.json"
 
 
+def _load_json_config():
+    """从 config.json 加载非敏感配置"""
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+
 class Config:
-    _instance: Optional["Config"] = None
-
     def __init__(self):
-        self.fxcm_url: str = ""
-        self.fxcm_username: str = ""
-        self.fxcm_password: str = ""
-        self.fxcm_connection: str = "Demo"
-        self.fxcm_session_timeout: int = 300
+        data = _load_json_config()
 
-        self.webhook_token: str = ""
-        self.webhook_timeout: float = 2.5
+        # FXCM
+        fxcm = data.get("fxcm", {})
+        self.fxcm_url = fxcm.get("url", "www.fxcorporate.com/Hosts.jsp")
+        self.fxcm_connection = fxcm.get("connection", "Demo")
+        self.fxcm_session_timeout = int(fxcm.get("session_timeout_seconds", 300))
 
-        self.server_host: str = "0.0.0.0"
-        self.server_port: int = 5000
+        # Webhook
+        webhook = data.get("webhook", {})
+        self.webhook_token = webhook.get("token", "")
+        self.webhook_timeout = float(webhook.get("timeout_seconds", 2.5))
 
-        self.log_level: str = "INFO"
+        # Server
+        server = data.get("server", {})
+        self.server_host = server.get("host", "0.0.0.0")
+        self.server_port = int(server.get("port", 5000))
 
-        self.risk_max_position_size: int = 100000
-        self.risk_max_daily_trades: int = 50
-        self.risk_max_loss_per_trade_pct: float = 2.0
+        # Logging
+        logging_cfg = data.get("logging", {})
+        self.log_level = logging_cfg.get("level", "INFO")
 
-        self._load()
+        # Risk
+        risk = data.get("risk", {})
+        self.risk_max_position_size = int(risk.get("max_position_size", 100000))
+        self.risk_max_daily_trades = int(risk.get("max_daily_trades", 50))
+        self.risk_max_loss_per_trade_pct = float(risk.get("max_loss_per_trade_pct", 2.0))
 
-    def _load(self):
-        # Load config.json if exists
-        if CONFIG_FILE.exists():
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            fxcm = data.get("fxcm", {})
-            self.fxcm_url = fxcm.get("url", "www.fxcorporate.com/Hosts.jsp")
-            self.fxcm_connection = fxcm.get("connection", "Demo")
-            self.fxcm_session_timeout = fxcm.get("session_timeout_seconds", 300)
-
-            webhook = data.get("webhook", {})
-            self.webhook_timeout = webhook.get("timeout_seconds", 2.5)
-
-            server = data.get("server", {})
-            self.server_host = server.get("host", "0.0.0.0")
-            self.server_port = server.get("port", 5000)
-
-            logging_cfg = data.get("logging", {})
-            self.log_level = logging_cfg.get("level", "INFO")
-
-            risk = data.get("risk", {})
-            self.risk_max_position_size = risk.get("max_position_size", 100000)
-            self.risk_max_daily_trades = risk.get("max_daily_trades", 50)
-            self.risk_max_loss_per_trade_pct = risk.get("max_loss_per_trade_pct", 2.0)
-
-        # Environment variables override (sensitive fields MUST come from env)
-        self.fxcm_username = os.environ.get("FXCM_USERNAME", self.fxcm_username)
-        self.fxcm_password = os.environ.get("FXCM_PASSWORD", self.fxcm_password)
+        # 环境变量覆盖
+        self.fxcm_username = os.environ.get("FXCM_USERNAME", "")
+        self.fxcm_password = os.environ.get("FXCM_PASSWORD", "")
         self.webhook_token = os.environ.get("WEBHOOK_TOKEN", self.webhook_token)
 
+        # 验证必填项
         if not self.fxcm_username or not self.fxcm_password:
             raise ValueError(
                 "FXCM_USERNAME and FXCM_PASSWORD environment variables are required. "
                 "Set them before starting the server."
             )
-
         if not self.webhook_token:
             raise ValueError(
-                "WEBHOOK_TOKEN environment variable is required."
+                "WEBHOOK_TOKEN is required. "
+                "Set it in config.json or WEBHOOK_TOKEN environment variable."
             )
 
-    @classmethod
-    def get_instance(cls) -> "Config":
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls
+
+# 单例
+_instance = None
 
 
-def get_config() -> Config:
-    """Shortcut for getting the singleton config instance."""
-    return Config.get_instance()
+def get_config():
+    global _instance
+    if _instance is None:
+        _instance = Config()
+    return _instance
