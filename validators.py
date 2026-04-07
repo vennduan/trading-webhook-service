@@ -44,16 +44,16 @@ def parse_tradingview_text(message: str) -> Dict[str, Any]:
     # 打印原始消息，方便调试
     print(f"[DEBUG] Raw message: {message}")
 
-    # 提取方向和手数: 订单BUY@1  或 订单SELL@10
-    m = re.search(r'订单([A-Z]+)@(\d+)', message)
+    # 提取方向和手数: 订单BUY@1  或 订单buy@2
+    m = re.search(r'订单([A-Za-z]+)@(\d+)', message)
     if m:
         result["direction"] = m.group(1).upper()
         result["amount"] = int(m.group(2)) * 1000  # 1手=1000 units
 
-    # 提取品种: 成交EUR/USD
-    m2 = re.search(r'成交([A-Z]+/[A-Z]+)', message)
+    # 提取品种: 成交EUR/USD 或 成交XAUUSD
+    m2 = re.search(r'成交([A-Za-z]+/[A-Za-z]+|[A-Za-z]{3,6})', message)
     if m2:
-        result["symbol"] = m2.group(1)
+        result["symbol"] = m2.group(1).upper()
 
     # 提取新策略仓位
     m3 = re.search(r'新策略仓位(\d+)', message)
