@@ -39,20 +39,10 @@ def tv_to_fxcm(tv_symbol: str) -> str:
     """
     TradingView 格式 -> FXCM 格式
     EUR/USD -> EUR/USD (FXCM也用 slash 格式，Python API兼容)
-    XAUUSD -> XAU/USD (无slash的贵金属需转换)
     """
     if not tv_symbol:
         raise ValueError("Symbol cannot be empty")
-    s = tv_symbol.strip()
-    # 无slash的贵金属转换
-    slashless_map = {
-        "XAUUSD": "XAU/USD",
-        "XAUXAG": "XAU/XAG",
-        "XAGEUR": "XAU/EUR",
-    }
-    if s in slashless_map:
-        return slashless_map[s]
-    return s
+    return tv_symbol.strip()
 
 
 def fxcm_to_tv(fxcm_symbol: str) -> str:
