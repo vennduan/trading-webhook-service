@@ -68,7 +68,7 @@ def get_account(account_id: Optional[str] = None) -> Dict[str, Any]:
         "balance": account.get_cell(3),
         "equity": account.get_cell(4),
         "margin": account.get_cell(5),
-        "free_margin": account.get_cell(6),
+        "free_margin": account.get_cell(5),
         "margin_level": None,
         "currency": "USD",
     }
@@ -231,7 +231,7 @@ def place_market_order(
 
     print(f"[DEBUG] sending OM order request: buy_sell={buy_sell}, amount={amount}", flush=True)
     resp = fx.send_request(request)
-    print(f"[DEBUG] response: order_id={resp.order_id}, status={resp.status}", flush=True)
+    print(f"[DEBUG] response: order_id={resp.order_id}", flush=True)
     order_id = resp.order_id
 
     _trade_logger.info(
