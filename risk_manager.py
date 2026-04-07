@@ -99,14 +99,20 @@ class RiskManager:
             )
 
         # 2. 检查余额
+        print(f"[DEBUG] check_risk: getting account...", flush=True)
         try:
             account = get_account()
+            print(f"[DEBUG] check_risk: got account {account.get('account_id')}, balance={account.get('balance')}", flush=True)
         except Exception as e:
+            print(f"[ERROR] check_risk: get_account failed: {e}", flush=True)
+            import traceback; traceback.print_exc()
             raise RiskLimitExceeded("ACCOUNT_QUERY_FAILED", f"Cannot get account: {e}")
 
         balance = float(account.get("balance", 0))
         equity = float(account.get("equity", 0))
         free_margin = float(account.get("free_margin", 0))
+
+        print(f"[DEBUG] check_risk: balance={balance}, equity={equity}, free_margin={free_margin}", flush=True)
 
         # 估算保证金需求（约 2% 每手）
         estimated_margin = amount * (rate or 1.0) * 0.02
@@ -117,6 +123,7 @@ class RiskManager:
             )
 
         # 3. 检查今日交易次数
+        print(f"[DEBUG] check_risk: daily count={self._daily_trade_count}/{self.max_daily_trades}", flush=True)
         if self._daily_trade_count >= self.max_daily_trades:
             raise RiskLimitExceeded(
                 "DAILY_TRADE_LIMIT",
@@ -124,7 +131,14 @@ class RiskManager:
             )
 
         # 4. 检查同向持仓数量（可选）
-        positions = get_positions(account["account_id"])
+        print(f"[DEBUG] check_risk: getting positions...", flush=True)
+        try:
+            positions = get_positions(account["account_id"])
+            print(f"[DEBUG] check_risk: got {len(positions)} positions", flush=True)
+        except Exception as e:
+            print(f"[ERROR] check_risk: get_positions failed: {e}", flush=True)
+            import traceback; traceback.print_exc()
+            positions = []
         same_direction = [
             p for p in positions
             if p["instrument"] == symbol and p["buy_sell"].upper() == direction.upper()
@@ -139,6 +153,7 @@ class RiskManager:
             f"Risk check passed | symbol={symbol} | direction={direction} | "
             f"amount={amount} | balance={balance} | equity={equity}"
         )
+        print(f"[DEBUG] check_risk: passed!", flush=True)
 
     def record_trade(self, trade: Dict[str, Any]):
         """记录已执行的交易"""
