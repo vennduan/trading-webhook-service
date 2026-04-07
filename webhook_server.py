@@ -14,6 +14,7 @@ from session_manager import get_session
 from validators import validate_message, ValidationError
 from risk_manager import check_risk, record_trade, RiskLimitExceeded
 from trading import execute_trade, get_account
+from forexconnect.errors import RequestFailedError
 
 
 # 初始化日志
@@ -165,6 +166,14 @@ def webhook():
                 f"{params['symbol']} @ {params['rate'] or 'MARKET'} executed"
             ),
         }), 200
+
+    except RequestFailedError as e:
+        _logger.error(f"Trade rejected by FXCM: {e}")
+        return jsonify({
+            "status": "error",
+            "code": "TRADE_REJECTED",
+            "message": str(e),
+        }), 400
 
     except Exception as e:
         _logger.exception(f"Trade execution failed: {e}")
