@@ -59,7 +59,7 @@ def get_account(account_id: Optional[str] = None) -> Dict[str, Any]:
         reader = fx.session.response_reader_factory.create_reader(
             accounts_response
         )
-        if reader.count == 0:
+        if reader.size == 0:
             raise ValueError("No accounts found")
         account = reader.get_row(0)
 
