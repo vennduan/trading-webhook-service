@@ -1,0 +1,23 @@
+{
+  "fxcm": {
+    "url": "www.fxcorporate.com/Hosts.jsp",
+    "connection": "Demo",
+    "session_timeout_seconds": 300
+  },
+  "webhook": {
+    "token": "YOUR-WEBHOOK-TOKEN-HERE",
+    "timeout_seconds": 2.5
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5000
+  },
+  "logging": {
+    "level": "INFO"
+  },
+  "risk": {
+    "max_position_size": 100000,
+    "max_daily_trades": 50,
+    "max_loss_per_trade_pct": 2.0
+  }
+}

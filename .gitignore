@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual env
+venv/
+.venv/
+env/
+
+# Config (contains secrets — do NOT commit)
+config.json
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store

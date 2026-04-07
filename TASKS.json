@@ -1,0 +1,225 @@
+{
+  "project": "trading-webhook-service",
+  "version": "1.0.0",
+  "tasks": [
+
+    /* ═══════════════════════════════════════════════════════════════
+       阶段 0：项目骨架
+    ═══════════════════════════════════════════════════════════════ */
+    {
+      "id": 1,
+      "title": "初始化项目结构",
+      "description": "创建 logs/ 目录、config.json.example 示例配置文件、.gitignore",
+      "status": "completed",
+      "priority": "high",
+      "depends": []
+    },
+    {
+      "id": 2,
+      "title": "编写 requirements.txt",
+      "description": "forexconnect, flask, python-dateutil，并锁定兼容 Python 3.8 的版本",
+      "status": "completed",
+      "priority": "high",
+      "depends": []
+    },
+
+    /* ═══════════════════════════════════════════════════════════════
+       阶段 1：配置与日志
+    ═══════════════════════════════════════════════════════════════ */
+    {
+      "id": 3,
+      "title": "编写 config.py — 配置管理",
+      "description": "支持 config.json + 环境变量双重配置。配置项：FXCM账号密码、Webhook Token、监听端口、日志级别、会话超时时间。敏感信息从环境变量读取，config.json 只放非敏感项。",
+      "status": "completed",
+      "priority": "high",
+      "depends": [1]
+    },
+    {
+      "id": 4,
+      "title": "编写 logger.py — 日志模块",
+      "description": "TimedRotatingFileHandler 按天分割日志到 logs/ 目录。包含时间戳、日志级别、请求ID。交易相关日志独立记录到 trades.log，不记录密码。",
+      "status": "completed",
+      "priority": "high",
+      "depends": [3]
+    },
+
+    /* ═══════════════════════════════════════════════════════════════
+       阶段 2：交易核心层
+    ═══════════════════════════════════════════════════════════════ */
+    {
+      "id": 5,
+      "title": "编写 symbols.py — 交易品种映射",
+      "description": "TradingView 品种格式(EUR/USD) ↔ FXCM 格式(EURUSD) 互转。维护符号映射表，支持从 FXCM 动态获取可用品种列表并缓存。",
+      "status": "completed",
+      "priority": "high",
+      "depends": [3]
+    },
+    {
+      "id": 6,
+      "title": "编写 session_manager.py — FXCM 会话管理",
+      "description": "单例模式管理 ForexConnect 会话：登录、保持连接、断线检测、自动重连、优雅登出(Ctrl+C/SIGTERM)。防止重复登录。",
+      "status": "completed",
+      "priority": "high",
+      "depends": [4, 5]
+    },
+    {
+      "id": 7,
+      "title": "编写 trading.py — 交易逻辑封装",
+      "description": "每个方法对应一种交易操作：\n- login() / logout()\n- get_account() — 获取账户信息\n- get_offer() — 获取品种报价\n- get_position() — 查询持仓\n- place_market_order() — 市价单\n- place_stop_order() — 止损挂单\n- place_limit_order() — 限价挂单\n- attach_stop_limit_to_position() — 附加止损/限价到持仓\n- edit_order() — 修改挂单价格\n- cancel_order() — 取消挂单\n包含重试逻辑(最多2次)。",
+      "status": "completed",
+      "priority": "high",
+      "depends": [6]
+    },
+    {
+      "id": 8,
+      "title": "编写 risk_manager.py — 风控模块",
+      "description": "下单前检查：账户余额、可用保证金、持仓数量限制、单笔最大金额。记录每笔交易的盈亏到本地文件。不满足风控条件时拒绝下单并返回明确错误。",
+      "status": "completed",
+      "priority": "high",
+      "depends": [7]
+    },
+
+    /* ═══════════════════════════════════════════════════════════════
+       阶段 3：请求验证层
+    ═══════════════════════════════════════════════════════════════ */
+    {
+      "id": 9,
+      "title": "编写 validators.py — 请求验证",
+      "description": "验证函数：\n- verify_token() — Webhook Token 校验\n- validate_json_schema() — 必填字段 + 枚举值校验(direction/order_type)\n- validate_amount() — amount > 0\n- validate_rate() — rate > 0\n- validate_symbol() — 品种格式(EUR/USD)校验",
+      "status": "completed",
+      "priority": "high",
+      "depends": [3]
+    },
+
+    /* ═══════════════════════════════════════════════════════════════
+       阶段 4：Webhook 服务层
+    ═══════════════════════════════════════════════════════════════ */
+    {
+      "id": 10,
+      "title": "编写 webhook_server.py — Flask 服务",
+      "description": "Flask 应用：\n- POST /webhook — 接收TradingView告警 → 验证 → 交易 → 返回结果\n- GET /health — 健康检查\n- GET /account — 查询账户余额(可选)\n- 全局请求ID注入、请求/响应日志、超时控制(2.5s)、异常统一返回JSON错误。",
+      "status": "completed",
+      "priority": "high",
+      "depends": [4, 8, 9]
+    },
+    {
+      "id": 11,
+      "title": "编写 run.bat — 启动脚本",
+      "description": "Windows 批处理：设置环境变量、启动 Flask 服务(带滚动日志重定向)、异常退出码。",
+      "status": "completed",
+      "priority": "medium",
+      "depends": [10]
+    },
+
+    /* ═══════════════════════════════════════════════════════════════
+       阶段 5：运维脚本
+    ═══════════════════════════════════════════════════════════════ */
+    {
+      "id": 12,
+      "title": "编写 install_service.bat — NSSM Windows 服务安装",
+      "description": "用 NSSM 将 webhook_server.py 注册为 Windows 服务：自动启动、开机自启、崩溃自动重启。包含 install / uninstall / start / stop 命令。",
+      "status": "completed",
+      "priority": "medium",
+      "depends": [11]
+    },
+    {
+      "id": 13,
+      "title": "编写 test_local.bat — 本地测试脚本",
+      "description": "用 curl 模拟 TradingView POST 请求到 localhost:5000，测试各 order_type(MARKET/STOP/LIMIT) 和错误分支。",
+      "status": "completed",
+      "priority": "medium",
+      "depends": [11]
+    },
+
+    /* ═══════════════════════════════════════════════════════════════
+       阶段 6：测试（本地 / 服务器）
+    ═══════════════════════════════════════════════════════════════ */
+    {
+      "id": 14,
+      "title": "服务器环境安装",
+      "description": "在 Windows 服务器上：安装 Python 3.8.6(如未安装)、pip install -r requirements.txt、验证 python -c \"from forexconnect import ForexConnect; print('OK')\"",
+      "status": "pending",
+      "priority": "high",
+      "depends": [2]
+    },
+    {
+      "id": 15,
+      "title": "配置 config.json",
+      "description": "在服务器上创建 config.json，填入 Demo 账号信息、Webhook Token、监听端口。确认防火墙/安全组开放端口。",
+      "status": "pending",
+      "priority": "high",
+      "depends": [3, 14]
+    },
+    {
+      "id": 16,
+      "title": "Demo 账号登录测试",
+      "description": "单独跑 trading.py，用 Demo 账号测试登录、查询余额、查询持仓、获取报价。确认 FXCM 连接正常。",
+      "status": "pending",
+      "priority": "high",
+      "depends": [7]
+    },
+    {
+      "id": 17,
+      "title": "Webhooks 接口测试",
+      "description": "用 test_local.bat 或 Postman 发送各类型请求：正常市价单、止损单、限价单、缺少字段、Token错误、品种错误。验证日志输出。",
+      "status": "pending",
+      "priority": "high",
+      "depends": [10]
+    },
+    {
+      "id": 18,
+      "title": "TradingView 联调测试",
+      "description": "在 TradingView 创建告警，配置 Webhook URL 指向服务器。触发告警，验证完整链路：TV告警 → 服务器接收 → FXCM执行 → 返回结果。",
+      "status": "pending",
+      "priority": "high",
+      "depends": [17]
+    },
+
+    /* ═══════════════════════════════════════════════════════════════
+       阶段 7：文档与交付
+    ═══════════════════════════════════════════════════════════════ */
+    {
+      "id": 19,
+      "title": "编写 README.md — 部署运维文档",
+      "description": "包含：服务器环境要求、依赖安装步骤、config.json 配置说明、启动/停止服务命令、Windows服务安装、NSSM命令、TradingView配置、常见错误排查。",
+      "status": "completed",
+      "priority": "high",
+      "depends": [12, 17]
+    },
+    {
+      "id": 20,
+      "title": "Real 账号切换检查清单",
+      "description": "制作切换到 Real 账号前的检查清单：Demo 测试通过 → 账号密码正确 → config.json 连接类型改为 Real → 告警复测 → 风控参数确认。",
+      "status": "completed",
+      "priority": "medium",
+      "depends": [18]
+    },
+    {
+      "id": 21,
+      "title": "单元测试（可选，CI就绪）",
+      "description": "pytest 单元测试：validators 各函数、symbols 映射、config 解析。Trading/FXCM 交互因依赖 API 暂不 Mock。可选。",
+      "status": "completed",
+      "priority": "low",
+      "depends": [9, 19]
+    }
+
+  ],
+
+  "milestones": {
+    "M1": {
+      "name": "核心开发",
+      "tasks": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+      "description": "完成所有源代码和运维脚本"
+    },
+    "M2": {
+      "name": "测试验收",
+      "tasks": [14, 15, 16, 17, 18],
+      "description": "服务器部署 + TradingView 联调"
+    },
+    "M3": {
+      "name": "交付文档",
+      "tasks": [19, 20, 21],
+      "description": "README + 检查清单 + 单元测试"
+    }
+  }
+}
