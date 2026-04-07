@@ -55,7 +55,7 @@ def get_account(account_id: Optional[str] = None) -> Dict[str, Any]:
         account = Common.get_account(fx, account_id)
     else:
         login_rules = fx.login_rules
-        accounts_table = login_rules.get_table_refresh_response()
+        accounts_table = login_rules.get_table_refresh_response(ForexConnect.ACCOUNTS)
         reader = fx.session.response_reader_factory.create_accounts_table_reader(
             accounts_table
         )

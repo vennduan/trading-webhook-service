@@ -83,7 +83,7 @@ class SessionManager:
     def _cache_offers(self, fx: ForexConnect):
         """获取并缓存 FXCM 可用品种"""
         try:
-            offers_table = fx.login_rules.get_table_refresh_response()
+            offers_table = fx.login_rules.get_table_refresh_response(ForexConnect.OFFERS)
             reader = fx.session.response_reader_factory.create_offers_table_reader(
                 offers_table
             )
