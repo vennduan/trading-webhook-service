@@ -217,7 +217,7 @@ def place_market_order(
 
     request = fx.create_order_request(
         command=fxcorepy.Constants.Commands.CREATE_ORDER,
-        order_type=fxcorepy.Constants.Orders.OM,
+        order_type=fxcorepy.Constants.Orders.TRUE_MARKET_OPEN,
         OFFER_ID=offer["offer_id"],
         ACCOUNT_ID=account["account_id"],
         BUY_SELL=buy_sell,
