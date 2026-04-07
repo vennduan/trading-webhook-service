@@ -5,6 +5,7 @@
 """
 
 import json
+import threading
 from pathlib import Path
 from datetime import datetime, date
 from typing import Dict, Any, Optional
@@ -31,6 +32,7 @@ class RiskLimitExceeded(Exception):
 
 class RiskManager:
     _instance: Optional["RiskManager"] = None
+    _lock = threading.Lock()
 
     def __init__(self):
         cfg = get_config()
@@ -168,8 +170,10 @@ class RiskManager:
     @classmethod
     def get_instance(cls) -> "RiskManager":
         if cls._instance is None:
-            cls._instance = cls()
-        return cls
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
+        return cls._instance
 
 
 def check_risk(symbol: str, direction: str, amount: int, rate: Optional[float] = None):
