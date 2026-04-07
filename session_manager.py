@@ -63,7 +63,6 @@ class SessionManager:
                     connection=cfg.fxcm_connection,
                     session_id=None,
                     pin=None,
-                    callback=Common.session_status_changed,
                 )
                 self._connected = True
                 self._last_login_time = now
