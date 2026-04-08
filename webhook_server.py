@@ -318,7 +318,7 @@ def main():
     app.run(
         host=cfg.server_host,
         port=cfg.server_port,
-        threaded=True,
+        threaded=False,
     )
 
 
