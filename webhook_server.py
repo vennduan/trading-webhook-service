@@ -81,6 +81,10 @@ def webhook():
     接收 TradingView Webhook 告警，执行交易
     基于 position/prev_position 状态机判断开仓/平仓
     """
+    _logger.warning(
+        f"[WEBHOOK START] content_type={request.content_type} "
+        f"content_length={request.content_length} remote_addr={request.remote_addr}"
+    )
     cfg = get_config()
 
     # 解析请求体：优先 JSON，失败则用纯文本
