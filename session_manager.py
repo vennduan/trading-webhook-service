@@ -120,17 +120,35 @@ class SessionManager:
 
     def health_check(self) -> bool:
         """
-        健康检查：尝试访问会话，确认连接真实可用（非僵尸会话）
+        健康检查：尝试访问会话，确认连接真实可用（非僵尸会话/进程锁死）
+        超时 5 秒认为会话已死，触发重连
         """
         if not self._connected or self._fx is None:
             return False
-        try:
-            self._fx.get_table(ForexConnect.OFFERS)
-            return True
-        except Exception:
-            # 会话已死，标记断开，由 ensure_connected 触发重连
+
+        result = {"ok": False}
+
+        def _check():
+            try:
+                self._fx.get_table(ForexConnect.OFFERS)
+                result["ok"] = True
+            except Exception:
+                pass
+
+        t = threading.Thread(target=_check)
+        t.daemon = True
+        t.start()
+        t.join(timeout=5.0)
+
+        if t.is_alive():
+            # 会话冻住，强制重连
             self._connected = False
             return False
+
+        if not result["ok"]:
+            self._connected = False
+
+        return result["ok"]
 
     @property
     def fx(self) -> ForexConnect:
