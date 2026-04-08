@@ -13,7 +13,7 @@ from logger import setup_logger, set_request_id, clear_request_id, get_logger, m
 from session_manager import get_session
 from validators import validate_message, ValidationError
 from risk_manager import check_risk, record_trade, RiskLimitExceeded
-from trading import execute_trade, get_account, close_all_positions, get_positions
+from trading import execute_trade, get_account, close_all_positions, close_position, get_positions
 from forexconnect.errors import RequestFailedError
 
 
@@ -79,7 +79,7 @@ def handle_generic_error(e):
 def webhook():
     """
     接收 TradingView Webhook 告警，执行交易
-    期望 JSON body
+    基于 position/prev_position 状态机判断开仓/平仓
     """
     cfg = get_config()
 
@@ -89,7 +89,6 @@ def webhook():
     except Exception:
         data = None
 
-    # 如果 JSON 解析失败，尝试获取原始文本
     if data is None:
         raw = request.get_data(as_text=True)
         if raw:
@@ -104,26 +103,33 @@ def webhook():
 
     _logger.info(f"Webhook received: {data}")
 
-    # 验证请求（自动识别 JSON 或纯文本）
+    # 验证并解析（返回 trade_action: OPEN_LONG/OPEN_SHORT/CLOSE_LONG/CLOSE_SHORT/NO_ACTION）
     params = validate_message(data)
 
-    # 风控检查
-    try:
-        check_risk(
-            symbol=params["symbol"],
-            direction=params["direction"],
-            amount=params["amount"],
-            rate=params["rate"],
-        )
-    except RiskLimitExceeded as e:
-        return jsonify({
-            "status": "error",
-            "code": e.code,
-            "message": e.message,
-        }), 403
+    trade_action = params.get("trade_action", "NO_ACTION")
+    symbol = params["symbol"]
 
-    # 执行交易
+    # ── NO_ACTION: 无仓位变化（重复信号/反手过渡态）──────────────────
+    if trade_action == "NO_ACTION":
+        _logger.info(
+            f"No action: position={params.get('position')} "
+            f"prev={params.get('prev_position')} action={params.get('direction')}"
+        )
+        return jsonify({
+            "status": "success",
+            "message": "no action (position unchanged)",
+        }), 200
+
     try:
+        # ── 风控检查（仅开仓过风控，平仓直接过）──────────────────
+        if trade_action.startswith("OPEN"):
+            check_risk(
+                symbol=symbol,
+                direction=params["direction"],
+                amount=params["amount"],
+                rate=params["rate"],
+            )
+
         # 确保 FXCM 连接
         sm = get_session()
         if not sm.ensure_connected():
@@ -133,29 +139,48 @@ def webhook():
                 "message": "Failed to connect to FXCM",
             }), 503
 
-        # 核心：下单
-        # ── 平仓信号 ───────────────────────────────────────────
-        if params["direction"] == "CLOSE":
-            symbol = params.get("symbol")
-            close_result = close_all_positions(symbol=symbol if symbol else None)
-            _logger.info(f"Close result: {close_result}")
+        # ── 平仓：CLOSE_LONG / CLOSE_SHORT ───────────────────────
+        if trade_action in ("CLOSE_LONG", "CLOSE_SHORT"):
+            positions = get_positions()
+            # buy_sell: "B"=多头, "S"=空头
+            target_bs = "B" if trade_action == "CLOSE_LONG" else "S"
+            to_close = [
+                p for p in positions
+                if p["instrument"] == symbol and p["buy_sell"] == target_bs
+            ]
+            if not to_close:
+                _logger.info(f"No {trade_action} position for {symbol}")
+                return jsonify({
+                    "status": "success",
+                    "message": f"no {trade_action} position for {symbol}",
+                }), 200
+
+            closed = []
+            for pos in to_close:
+                try:
+                    result = close_position(pos["trade_id"])
+                    closed.append({"trade_id": pos["trade_id"], "status": result["status"]})
+                except Exception as e:
+                    _logger.error(f"Failed to close trade {pos['trade_id']}: {e}")
 
             record_trade({
-                "symbol": symbol or "ALL",
-                "direction": "CLOSE",
+                "symbol": symbol,
+                "direction": trade_action,
                 "amount": 0,
                 "order_type": "CLOSE",
                 "rate": None,
                 "order_id": None,
             })
 
+            _logger.info(f"Close {trade_action}: {closed}")
             return jsonify({
                 "status": "success",
-                "message": f"Close executed: {close_result}",
+                "message": f"{trade_action} executed: {closed}",
             }), 200
-        # ── 开仓 ──────────────────────────────────────────────
+
+        # ── 开仓：OPEN_LONG / OPEN_SHORT ─────────────────────────
         result = execute_trade(
-            symbol=params["symbol"],
+            symbol=symbol,
             direction=params["direction"],
             amount=params["amount"],
             order_type=params["order_type"],
@@ -163,9 +188,8 @@ def webhook():
             trade_id=params.get("trade_id"),
         )
 
-        # 记录交易
         record_trade({
-            "symbol": params["symbol"],
+            "symbol": symbol,
             "direction": params["direction"],
             "amount": params["amount"],
             "order_type": params["order_type"],
@@ -174,18 +198,25 @@ def webhook():
         })
 
         _logger.info(
-            f"Trade executed: {params['direction']} {params['amount']} "
-            f"{params['symbol']} @ {params['rate'] or 'MARKET'}"
+            f"Trade executed: {trade_action} {params['amount']} "
+            f"{symbol} @ {params['rate'] or 'MARKET'}"
         )
 
         return jsonify({
             "status": "success",
             "order_id": result.get("order_id"),
             "message": (
-                f"{params['direction']} {params['amount']} "
-                f"{params['symbol']} @ {params['rate'] or 'MARKET'} executed"
+                f"{trade_action} {params['amount']} "
+                f"{symbol} @ {params['rate'] or 'MARKET'} executed"
             ),
         }), 200
+
+    except RiskLimitExceeded as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": e.message,
+        }), 403
 
     except RequestFailedError as e:
         _logger.error(f"Trade rejected by FXCM: {e}")
