@@ -103,45 +103,79 @@ def get_offer(symbol: str) -> Optional[Dict[str, Any]]:
 
 @retry(max_attempts=2)
 def get_positions(account_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    """查询所有持仓（兼容 Python 3.7ForexConnect API）"""
+    """
+    查询所有持仓（Python 3.7 ForexConnect 兼容）
+    返回空列表而不抛异常，保证开仓路径不被阻塞
+    """
     sm = get_session()
     sm.ensure_connected()
 
     fx = sm.fx
-    try:
-        # Python 3.10+ / 新版 ForexConnect
-        trades_table = fx.get_table(ForexConnect.TRADES)
-        reader = fx.session.response_reader_factory.create_reader(
-            trades_table.get_refresh_response()
-        )
-    except AttributeError:
-        # Python 3.7 / 旧版 ForexConnect: 用 login_rules.get_table_refresh_response
+    reader = None
+
+    # 尝试多种 API 获取 reader
+    for _attempt in range(3):
         try:
-            response = fx.login_rules.get_table_refresh_response(ForexConnect.TRADES)
-            reader = fx.session.response_reader_factory.create_reader(response)
-        except AttributeError:
-            # 备用: 直接用 table.refresh()
-            trades_table = fx.get_table(ForexConnect.TRADES)
-            trades_table.refresh()
-            reader = fx.session.response_reader_factory.create_reader(
-                trades_table.get_refresh_response()
-            )
+            if reader is None:
+                trades_table = fx.get_table(ForexConnect.TRADES)
+                resp = trades_table.get_refresh_response()
+                reader = fx.session.response_reader_factory.create_reader(resp)
+            break
+        except Exception:
+            pass
+        try:
+            if reader is None:
+                resp = fx.login_rules.get_table_refresh_response(ForexConnect.TRADES)
+                reader = fx.session.response_reader_factory.create_reader(resp)
+            break
+        except Exception:
+            pass
+        try:
+            if reader is None:
+                trades_table = fx.get_table(ForexConnect.TRADES)
+                trades_table.refresh()
+                resp = trades_table.get_refresh_response()
+                reader = fx.session.response_reader_factory.create_reader(resp)
+            break
+        except Exception:
+            pass
+    else:
+        # 所有方式都失败，返回空列表（不阻塞开仓）
+        return []
+
+    if reader is None:
+        return []
 
     positions = []
-    for i in range(reader.size):
-        row = reader.get_row(i)
-        if account_id and row.account_id != account_id:
-            continue
-        positions.append({
-            "trade_id": row.trade_id,
-            "offer_id": row.offer_id,
-            "instrument": row.instrument,
-            "amount": row.amount,
-            "buy_sell": row.buy_sell,
-            "open_rate": row.open_rate,
-            "pl": row.pl,
-            "account_id": row.account_id,
-        })
+    try:
+        # 尝试 __len__
+        try:
+            total = len(reader)
+        except Exception:
+            total = 1000  # 足够大的上限
+
+        for i in range(total):
+            try:
+                row = reader.get_row(i)
+            except Exception:
+                break
+            if row is None:
+                break
+            if account_id and row.account_id != account_id:
+                continue
+            positions.append({
+                "trade_id": row.trade_id,
+                "offer_id": row.offer_id,
+                "instrument": row.instrument,
+                "amount": row.amount,
+                "buy_sell": row.buy_sell,
+                "open_rate": row.open_rate,
+                "pl": row.pl,
+                "account_id": row.account_id,
+            })
+    except Exception:
+        pass
+
     return positions
 
 
