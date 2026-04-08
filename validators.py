@@ -171,88 +171,121 @@ def validate_message(data: Any) -> Dict[str, Any]:
     raise ValidationError("INVALID_JSON", "Request body must be JSON or plain text")
 
 
+# ──────────────────────────────────────────────────────────────
+# 安全类型转换（不抛异常，鲁棒性）
+# ──────────────────────────────────────────────────────────────
+
+def _to_str(val, default=""):
+    """安全转字符串，None/空返回默认值"""
+    if val is None:
+        return default
+    s = str(val).strip()
+    return s if s else default
+
+
+def _to_float(val):
+    """安全转 float，空/None/非法返回 None"""
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s or s.lower() in ("nan", "none"):
+        return None
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
+
+
+def _to_int(val):
+    """安全转 int，空/None/非法返回 None"""
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    try:
+        return int(float(s))
+    except (ValueError, TypeError):
+        return None
+
+
+# ──────────────────────────────────────────────────────────────
+# JSON 校验（已增强鲁棒性）
+# ──────────────────────────────────────────────────────────────
+
 def _validate_json(data: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise ValidationError("INVALID_JSON", "Request body must be a JSON object")
 
     # ── 字段别名兼容（webhook.json 等多种模板）───────────────
-    # side / direction 统一
     if "side" in data and "direction" not in data:
         data = dict(data)
         data["direction"] = data.pop("side")
-    # bot_sec / api_key -> token
     if "bot_sec" in data and "token" not in data:
         data = dict(data)
         data["token"] = data.pop("bot_sec")
     if "api_key" in data and "token" not in data:
         data = dict(data)
         data["token"] = data.pop("api_key")
-    # price -> rate
     if "price" in data and "rate" not in data:
         data = dict(data)
         data["rate"] = data.pop("price")
-    # now_position_amount / position_size -> position_size（记录用，不影响业务）
     if "now_position_amount" in data and "position_size" not in data:
         data = dict(data)
         data["position_size"] = data.pop("now_position_amount")
-    # 忽略多余字段: position, pre_position, bot_sec(已转token)
 
-    required = ["symbol", "direction", "amount"]
-    for field in required:
-        if field not in data or data[field] is None:
-            raise ValidationError("MISSING_FIELD", f"Missing required field: {field}", field)
+    # ── token 校验（空 token 静默跳过，不强制）──────────────
+    token = _to_str(data.get("token"))
+    if token:
+        try:
+            verify_token(token)
+        except ValidationError:
+            raise
 
-    verify_token(str(data.get("token", "")))
+    # ── 必填字段容错（空值/未填充变量 → 明确错误）──────────
+    direction_raw = _to_str(data.get("direction"))
+    symbol_raw = _to_str(data.get("symbol"))
+    amount_raw = _to_int(data.get("amount"))
 
-    symbol = str(data["symbol"]).strip()
+    if not direction_raw:
+        raise ValidationError("MISSING_FIELD", "direction/side is required", "direction")
+    if not symbol_raw:
+        raise ValidationError("MISSING_FIELD", "symbol is required", "symbol")
+    if amount_raw is None:
+        raise ValidationError("MISSING_FIELD", "amount is required", "amount")
+
+    # ── 品种（literal {{ticker}} 未填充视为无效）────────────
+    symbol = symbol_raw.upper()
+    if symbol.startswith("{{") and symbol.endswith("}}"):
+        raise ValidationError("INVALID_SYMBOL", f"Symbol not filled: {symbol}", "symbol")
     if not is_valid_symbol(symbol):
-        raise ValidationError("INVALID_SYMBOL", f"Invalid symbol format: {symbol}", "symbol")
+        raise ValidationError("INVALID_SYMBOL", f"Invalid symbol: {symbol}", "symbol")
 
-    direction = str(data["direction"]).strip().upper()
-    # 接受全写 BUY/SELL/CLOSE 或单字母 B/S
+    # ── 方向 ───────────────────────────────────────────────
+    direction = direction_raw.upper()
     direction_map = {"B": "BUY", "S": "SELL"}
     if direction in direction_map:
         direction = direction_map[direction]
     if direction not in ("BUY", "SELL", "CLOSE"):
         raise ValidationError("INVALID_DIRECTION", f"Invalid direction: {direction}, must be BUY, SELL or CLOSE", "direction")
 
-    try:
-        amount = int(data["amount"])
-    except (ValueError, TypeError):
-        raise ValidationError("INVALID_AMOUNT", f"Amount must be an integer: {data['amount']}", "amount")
-
+    # ── 手数 ───────────────────────────────────────────────
+    amount = amount_raw
     if direction != "CLOSE" and amount <= 0:
-        raise ValidationError("INVALID_AMOUNT", f"Amount must be positive: {amount}", "amount")
+        raise ValidationError("INVALID_AMOUNT", f"Invalid amount: {amount}", "amount")
 
-    order_type = str(data.get("order_type", "MARKET")).strip().upper()
+    # ── 订单类型 ───────────────────────────────────────────
+    order_type = _to_str(data.get("order_type"), "MARKET").upper()
     if direction == "CLOSE":
         order_type = "CLOSE"
     valid_order_types = ("MARKET", "STOP", "LIMIT", "CLOSE")
     if order_type not in valid_order_types:
         raise ValidationError("INVALID_ORDER_TYPE", f"Invalid order_type: {order_type}", "order_type")
 
-    rate = data.get("rate")
-    if rate is not None:
-        try:
-            rate = float(rate)
-        except (ValueError, TypeError):
-            raise ValidationError("INVALID_RATE", f"Rate must be a number: {rate}", "rate")
-        if rate <= 0:
-            raise ValidationError("INVALID_RATE", f"Rate must be positive: {rate}", "rate")
-
-    stop_rate = data.get("stop_rate")
-    if stop_rate is not None:
-        try:
-            stop_rate = float(stop_rate)
-        except (ValueError, TypeError):
-            raise ValidationError("INVALID_STOP_RATE", "stop_rate must be a number", "stop_rate")
-
-    limit_rate = data.get("limit_rate")
-    if limit_rate is not None:
-        try:
-            limit_rate = float(limit_rate)
-        except (ValueError, TypeError):
-            raise ValidationError("INVALID_LIMIT_RATE", "limit_rate must be a number", "limit_rate")
+    # ── 价格（容错：空/非法不报错，返回 None）───────────────
+    rate = _to_float(data.get("rate"))
+    stop_rate = _to_float(data.get("stop_rate"))
+    limit_rate = _to_float(data.get("limit_rate"))
 
     return {
         "symbol": symbol,
@@ -262,5 +295,6 @@ def _validate_json(data: Dict[str, Any]) -> Dict[str, Any]:
         "rate": rate,
         "stop_rate": stop_rate,
         "limit_rate": limit_rate,
-        "trade_id": data.get("trade_id"),
+        "trade_id": _to_str(data.get("trade_id")) or None,
+        "position_size": _to_int(data.get("position_size")),
     }
