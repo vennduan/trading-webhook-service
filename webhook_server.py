@@ -11,7 +11,7 @@ from flask import Flask, request, jsonify
 from config import get_config
 from logger import setup_logger, set_request_id, clear_request_id, get_logger, mask_sensitive
 from session_manager import get_session
-from validators import validate_message, ValidationError
+from validators import validate_message, ValidationError, _determine_action
 from risk_manager import check_risk, record_trade, RiskLimitExceeded
 from trading import execute_trade, get_account, close_all_positions, close_position, get_positions
 from forexconnect.errors import RequestFailedError
@@ -141,15 +141,6 @@ def webhook():
         }), 200
 
     try:
-        # ── 风控检查（仅开仓过风控，平仓直接过）──────────────────
-        if trade_action.startswith("OPEN"):
-            check_risk(
-                symbol=symbol,
-                direction=params["direction"],
-                amount=params["amount"],
-                rate=params["rate"],
-            )
-
         # 确保 FXCM 连接
         sm = get_session()
         if not sm.ensure_connected():
@@ -158,6 +149,45 @@ def webhook():
                 "code": "CONNECTION_ERROR",
                 "message": "Failed to connect to FXCM",
             }), 503
+
+        # ── prev_position 为空时，查 FXCM 实际持仓确定 prev_position ──
+        # TradingView prev_market_position 有时返回空，此时用 FXCM 实仓兜底
+        if not params.get("prev_position"):
+            try:
+                positions = get_positions()
+                fxcm_pos = next(
+                    (p for p in positions if p["instrument"] == symbol), None
+                )
+                if fxcm_pos:
+                    fxcm_prev = "long" if fxcm_pos["buy_sell"] == "B" else "short"
+                    _logger.info(
+                        f"prev_position empty, FXCM fallback: position={fxcm_pos['instrument']} "
+                        f"buy_sell={fxcm_pos['buy_sell']} -> prev={fxcm_prev}"
+                    )
+                    # 重新计算 trade_action
+                    direction = params["direction"]
+                    trade_action = _determine_action(
+                        direction, params["position"], fxcm_prev
+                    )
+                    params = dict(params)
+                    params["trade_action"] = trade_action
+                    params["prev_position"] = fxcm_prev
+                    trade_action = trade_action
+                    _logger.info(
+                        f"trade_action recalculated: {trade_action} "
+                        f"(TV prev was empty, used FXCM pos)"
+                    )
+            except Exception as e:
+                _logger.warning(f"FXCM position lookup failed: {e}, proceeding with TV data")
+
+        # ── 风控检查（仅开仓过风控，平仓直接过）──────────────────
+        if trade_action.startswith("OPEN"):
+            check_risk(
+                symbol=symbol,
+                direction=params["direction"],
+                amount=params["amount"],
+                rate=params["rate"],
+            )
 
         # ── 平仓：CLOSE_LONG / CLOSE_SHORT ───────────────────────
         if trade_action in ("CLOSE_LONG", "CLOSE_SHORT"):

@@ -103,15 +103,29 @@ def get_offer(symbol: str) -> Optional[Dict[str, Any]]:
 
 @retry(max_attempts=2)
 def get_positions(account_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    """查询所有持仓"""
+    """查询所有持仓（兼容 Python 3.7ForexConnect API）"""
     sm = get_session()
     sm.ensure_connected()
 
     fx = sm.fx
-    trades_table = fx.get_table(ForexConnect.TRADES)
-    reader = fx.session.response_reader_factory.create_reader(
-        trades_table.get_refresh_response()
-    )
+    try:
+        # Python 3.10+ / 新版 ForexConnect
+        trades_table = fx.get_table(ForexConnect.TRADES)
+        reader = fx.session.response_reader_factory.create_reader(
+            trades_table.get_refresh_response()
+        )
+    except AttributeError:
+        # Python 3.7 / 旧版 ForexConnect: 用 login_rules.get_table_refresh_response
+        try:
+            response = fx.login_rules.get_table_refresh_response(ForexConnect.TRADES)
+            reader = fx.session.response_reader_factory.create_reader(response)
+        except AttributeError:
+            # 备用: 直接用 table.refresh()
+            trades_table = fx.get_table(ForexConnect.TRADES)
+            trades_table.refresh()
+            reader = fx.session.response_reader_factory.create_reader(
+                trades_table.get_refresh_response()
+            )
 
     positions = []
     for i in range(reader.size):

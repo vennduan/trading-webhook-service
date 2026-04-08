@@ -242,6 +242,10 @@ def _validate_json(data: Dict[str, Any]) -> Dict[str, Any]:
         raise ValidationError("INVALID_JSON", "Request body must be a JSON object")
 
     # ── 字段别名兼容 ──────────────────────────────────────────
+    # id -> order_id（去重用）
+    if "id" in data and "order_id" not in data:
+        data = dict(data)
+        data["order_id"] = data.pop("id")
     # action (TradingView) -> direction
     if "action" in data and "direction" not in data:
         data = dict(data)
