@@ -38,14 +38,14 @@ class SessionManager:
         return self._fx
 
     def login(self, force: bool = False) -> bool:
-        """登录 FXCM，自动重连保护（30秒内不重复登录）"""
+        """登录 FXCM，自动重连保护（30秒内不重复登录，但会话已死时强制重连）"""
         with self._login_lock:
             if self._connected and not force:
                 return True
 
-            # 防重复登录：30秒冷却
+            # 防重复登录：30秒冷却（但 _fx 已销毁说明会话已死，强制重连）
             now = time.time()
-            if not force and (now - self._last_login_time) < 30:
+            if not force and (now - self._last_login_time) < 30 and self._fx is not None:
                 return self._connected
 
             cfg = get_config()
