@@ -307,16 +307,14 @@ def account():
 
 def main():
     cfg = get_config()
-    _logger.info(
-        f"Starting trading-webhook-service on "
-        f"{cfg.server_host}:{cfg.server_port}"
-    )
+    print(f"[*] Starting trading-webhook-service on {cfg.server_host}:{cfg.server_port}")
     # 启动时立即建立 FXCM 连接，避免第一个请求才登录导致假成功
     sm = get_session()
     if not sm.ensure_connected():
-        _logger.error("Failed to connect to FXCM at startup. Service will retry on each request.")
+        print("[!] Failed to connect to FXCM at startup. Service will retry on each request.")
     else:
-        _logger.info("FXCM connection established at startup.")
+        print("[*] FXCM connection established at startup.")
+    print("[*] Server ready. Press Ctrl+C to stop.")
     app.run(
         host=cfg.server_host,
         port=cfg.server_port,
