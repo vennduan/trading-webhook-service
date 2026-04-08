@@ -150,35 +150,21 @@ def webhook():
                 "message": "Failed to connect to FXCM",
             }), 503
 
-        # ── prev_position 为空时，查 FXCM 实际持仓确定 prev_position ──
-        # TradingView prev_market_position 有时返回空，此时用 FXCM 实仓兜底
-        if not params.get("prev_position"):
-            try:
-                positions = get_positions()
-                fxcm_pos = next(
-                    (p for p in positions if p["instrument"] == symbol), None
-                )
-                if fxcm_pos:
-                    fxcm_prev = "long" if fxcm_pos["buy_sell"] == "B" else "short"
-                    _logger.info(
-                        f"prev_position empty, FXCM fallback: position={fxcm_pos['instrument']} "
-                        f"buy_sell={fxcm_pos['buy_sell']} -> prev={fxcm_prev}"
-                    )
-                    # 重新计算 trade_action
-                    direction = params["direction"]
-                    trade_action = _determine_action(
-                        direction, params["position"], fxcm_prev
-                    )
-                    params = dict(params)
-                    params["trade_action"] = trade_action
-                    params["prev_position"] = fxcm_prev
-                    trade_action = trade_action
-                    _logger.info(
-                        f"trade_action recalculated: {trade_action} "
-                        f"(TV prev was empty, used FXCM pos)"
-                    )
-            except Exception as e:
-                _logger.warning(f"FXCM position lookup failed: {e}, proceeding with TV data")
+        # ── prev_position 为空时 fallback 为 "flat"（首次信号正常行为）─
+        prev = params.get("prev_position")
+        if not prev:
+            prev = "flat"
+            params = dict(params)
+            params["prev_position"] = "flat"
+            # 重新计算 trade_action
+            trade_action = _determine_action(
+                params["direction"], params["position"], "flat"
+            )
+            params["trade_action"] = trade_action
+            trade_action = trade_action
+            _logger.info(
+                f"prev_position was empty, treated as flat -> trade_action={trade_action}"
+            )
 
         # ── 风控检查（仅开仓过风控，平仓直接过）──────────────────
         if trade_action.startswith("OPEN"):
