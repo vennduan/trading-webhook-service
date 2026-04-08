@@ -141,14 +141,17 @@ def webhook():
         }), 200
 
     try:
-        # 确保 FXCM 连接
+        # 确保 FXCM 连接（健康检查防止僵尸会话）
         sm = get_session()
-        if not sm.ensure_connected():
-            return jsonify({
-                "status": "error",
-                "code": "CONNECTION_ERROR",
-                "message": "Failed to connect to FXCM",
-            }), 503
+        if not sm.health_check():
+            _logger.warning("FXCM session unhealthy, forcing re-login")
+            sm.logout()
+            if not sm.ensure_connected():
+                return jsonify({
+                    "status": "error",
+                    "code": "CONNECTION_ERROR",
+                    "message": "Failed to connect to FXCM",
+                }), 503
 
         # ── prev_position 为空时 fallback 为 "flat"（首次信号正常行为）─
         prev = params.get("prev_position")

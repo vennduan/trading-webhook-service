@@ -118,6 +118,22 @@ class SessionManager:
     def is_connected(self) -> bool:
         return self._connected
 
+    def health_check(self) -> bool:
+        """
+        健康检查：尝试访问会话，确认连接真实可用（非僵尸会话）
+        ForexConnect 多线程环境下会话可能已断开但 _connected 仍为 True
+        """
+        if not self._connected or self._fx is None:
+            return False
+        try:
+            # 尝试获取一个简单数据验证会话真实可用
+            self._fx.get_table(ForexConnect.OFFERS)
+            return True
+        except Exception:
+            self._connected = False
+            self._fx = None
+            return False
+
     @property
     def fx(self) -> ForexConnect:
         """获取 ForexConnect 实例（需确保已登录）"""
