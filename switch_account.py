@@ -22,8 +22,14 @@ ACTIVE_FILE = BASE_DIR / ".active_account"
 def load_accounts() -> dict:
     if not ACCOUNTS_FILE.exists():
         return {"accounts": {}}
-    with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            if not content:
+                return {"accounts": {}}
+            return json.loads(content)
+    except (json.JSONDecodeError, IOError):
+        return {"accounts": {}}
 
 
 def save_accounts(data: dict):
