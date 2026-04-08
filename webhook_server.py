@@ -328,7 +328,7 @@ def main():
     app.run(
         host=cfg.server_host,
         port=cfg.server_port,
-        threaded=True,
+        threaded=False,  # ForexConnect 非线程安全，禁用多线程
     )
 
 
