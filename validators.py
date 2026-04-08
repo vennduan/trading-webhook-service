@@ -175,6 +175,28 @@ def _validate_json(data: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise ValidationError("INVALID_JSON", "Request body must be a JSON object")
 
+    # ── 字段别名兼容（webhook.json 等多种模板）───────────────
+    # side / direction 统一
+    if "side" in data and "direction" not in data:
+        data = dict(data)
+        data["direction"] = data.pop("side")
+    # bot_sec / api_key -> token
+    if "bot_sec" in data and "token" not in data:
+        data = dict(data)
+        data["token"] = data.pop("bot_sec")
+    if "api_key" in data and "token" not in data:
+        data = dict(data)
+        data["token"] = data.pop("api_key")
+    # price -> rate
+    if "price" in data and "rate" not in data:
+        data = dict(data)
+        data["rate"] = data.pop("price")
+    # now_position_amount / position_size -> position_size（记录用，不影响业务）
+    if "now_position_amount" in data and "position_size" not in data:
+        data = dict(data)
+        data["position_size"] = data.pop("now_position_amount")
+    # 忽略多余字段: position, pre_position, bot_sec(已转token)
+
     required = ["symbol", "direction", "amount"]
     for field in required:
         if field not in data or data[field] is None:
@@ -187,23 +209,25 @@ def _validate_json(data: Dict[str, Any]) -> Dict[str, Any]:
         raise ValidationError("INVALID_SYMBOL", f"Invalid symbol format: {symbol}", "symbol")
 
     direction = str(data["direction"]).strip().upper()
-    # 接受全写 BUY/SELL 或单字母 B/S
+    # 接受全写 BUY/SELL/CLOSE 或单字母 B/S
     direction_map = {"B": "BUY", "S": "SELL"}
     if direction in direction_map:
         direction = direction_map[direction]
-    if direction not in ("BUY", "SELL"):
-        raise ValidationError("INVALID_DIRECTION", f"Invalid direction: {direction}, must be BUY or SELL", "direction")
+    if direction not in ("BUY", "SELL", "CLOSE"):
+        raise ValidationError("INVALID_DIRECTION", f"Invalid direction: {direction}, must be BUY, SELL or CLOSE", "direction")
 
     try:
         amount = int(data["amount"])
     except (ValueError, TypeError):
         raise ValidationError("INVALID_AMOUNT", f"Amount must be an integer: {data['amount']}", "amount")
 
-    if amount <= 0:
+    if direction != "CLOSE" and amount <= 0:
         raise ValidationError("INVALID_AMOUNT", f"Amount must be positive: {amount}", "amount")
 
     order_type = str(data.get("order_type", "MARKET")).strip().upper()
-    valid_order_types = ("MARKET", "STOP", "LIMIT")
+    if direction == "CLOSE":
+        order_type = "CLOSE"
+    valid_order_types = ("MARKET", "STOP", "LIMIT", "CLOSE")
     if order_type not in valid_order_types:
         raise ValidationError("INVALID_ORDER_TYPE", f"Invalid order_type: {order_type}", "order_type")
 
