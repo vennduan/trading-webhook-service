@@ -103,6 +103,22 @@ def webhook():
 
     _logger.info(f"Webhook received: {data}")
 
+    # ── 调试：打印原始字段 ────────────────────────────────────────
+    try:
+        raw_json = request.get_json(force=True)
+        _logger.info(f"DEBUG raw JSON fields: {list(raw_json.keys()) if raw_json else 'None'}")
+        if raw_json:
+            _logger.info(
+                f"DEBUG symbol={raw_json.get('symbol')} "
+                f"side={raw_json.get('side')} "
+                f"action={raw_json.get('action')} "
+                f"amount={raw_json.get('amount')} "
+                f"position={raw_json.get('position')} "
+                f"pre_position={raw_json.get('pre_position')}"
+            )
+    except Exception as e:
+        _logger.info(f"DEBUG get_json failed: {e}")
+
     # 验证并解析（返回 trade_action: OPEN_LONG/OPEN_SHORT/CLOSE_LONG/CLOSE_SHORT/NO_ACTION）
     params = validate_message(data)
 
