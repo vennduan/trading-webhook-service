@@ -276,11 +276,14 @@ def webhook():
 
 @app.route("/health", methods=["GET"])
 def health():
-    """健康检查"""
+    """健康检查（含 FXCM 会话状态）"""
+    sm = get_session()
+    fxcm_ok = sm.health_check()
     return jsonify({
-        "status": "ok",
+        "status": "ok" if fxcm_ok else "degraded",
         "service": "trading-webhook-service",
-    }), 200
+        "fxcm": "connected" if fxcm_ok else "disconnected",
+    }), 200 if fxcm_ok else 503
 
 
 @app.route("/account", methods=["GET"])
