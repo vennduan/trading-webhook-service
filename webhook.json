@@ -1,0 +1,10 @@
+{
+    "symbol": "XAUUSD",
+    "side": "{{strategy.order.action}}",
+    "amount": "{{strategy.order.contracts}}",
+    "now_position_amount": "{{strategy.market_position_size}}",
+    "position": "{{strategy.market_position}}",
+    "pre_position": "{{strategy.prev_market_position}}",
+    "price": "{{strategy.order.price}}",
+    "bot_sec": "fdadfb2d9e06a3b856b2252e1dd74d0367d4da1a396bb5db900ed8935386b1f5"
+}

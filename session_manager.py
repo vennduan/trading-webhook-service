@@ -88,7 +88,7 @@ class SessionManager:
                 offers_response
             )
             offers = []
-            for i in range(reader.count):
+            for i in range(reader.size):
                 row = reader.get_row(i)
                 offers.append({"instrument": row.instrument, "offer_id": row.offer_id})
             symbols.cache_offers(offers)

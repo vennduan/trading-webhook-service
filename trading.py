@@ -105,76 +105,50 @@ def get_offer(symbol: str) -> Optional[Dict[str, Any]]:
 def get_positions(account_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     查询所有持仓（Python 3.7 ForexConnect 兼容）
-    返回空列表而不抛异常，保证开仓路径不被阻塞
+    使用 fx.get_table().get_row() 代替 response_reader，避免 response_reader API 不稳定
     """
     sm = get_session()
     sm.ensure_connected()
 
     fx = sm.fx
-    reader = None
-
-    # 尝试多种 API 获取 reader
-    for _attempt in range(3):
-        try:
-            if reader is None:
-                trades_table = fx.get_table(ForexConnect.TRADES)
-                resp = trades_table.get_refresh_response()
-                reader = fx.session.response_reader_factory.create_reader(resp)
-            break
-        except Exception:
-            pass
-        try:
-            if reader is None:
-                resp = fx.login_rules.get_table_refresh_response(ForexConnect.TRADES)
-                reader = fx.session.response_reader_factory.create_reader(resp)
-            break
-        except Exception:
-            pass
-        try:
-            if reader is None:
-                trades_table = fx.get_table(ForexConnect.TRADES)
-                trades_table.refresh()
-                resp = trades_table.get_refresh_response()
-                reader = fx.session.response_reader_factory.create_reader(resp)
-            break
-        except Exception:
-            pass
-    else:
-        # 所有方式都失败，返回空列表（不阻塞开仓）
-        return []
-
-    if reader is None:
-        return []
+    trades_table = fx.get_table(ForexConnect.TRADES)
 
     positions = []
     try:
-        # 尝试 __len__
-        try:
-            total = len(reader)
-        except Exception:
-            total = 1000  # 足够大的上限
-
-        for i in range(total):
-            try:
-                row = reader.get_row(i)
-            except Exception:
-                break
-            if row is None:
-                break
-            if account_id and row.account_id != account_id:
-                continue
-            positions.append({
-                "trade_id": row.trade_id,
-                "offer_id": row.offer_id,
-                "instrument": row.instrument,
-                "amount": row.amount,
-                "buy_sell": row.buy_sell,
-                "open_rate": row.open_rate,
-                "pl": row.pl,
-                "account_id": row.account_id,
-            })
+        total = trades_table.size
     except Exception:
-        pass
+        return []
+
+    for i in range(total):
+        try:
+            row = trades_table.get_row(i)
+        except Exception:
+            break
+        if row is None:
+            break
+        try:
+            row_account_id = row.account_id
+            row_instrument = row.instrument
+            row_trade_id = row.trade_id
+            row_offer_id = row.offer_id
+            row_amount = row.amount
+            row_buy_sell = row.buy_sell
+            row_open_rate = row.open_rate
+            row_pl = row.pl
+        except Exception:
+            break
+        if account_id and row_account_id != account_id:
+            continue
+        positions.append({
+            "trade_id": row_trade_id,
+            "offer_id": row_offer_id,
+            "instrument": row_instrument,
+            "amount": row_amount,
+            "buy_sell": row_buy_sell,
+            "open_rate": row_open_rate,
+            "pl": row_pl,
+            "account_id": row_account_id,
+        })
 
     return positions
 
@@ -541,26 +515,32 @@ def close_position(trade_id: str, amount: Optional[int] = None) -> Dict[str, Any
     # FXCM 平仓用 SELL 关闭多头，用 BUY 关闭空头
     buy_sell = fxcorepy.Constants.SELL if trade["buy_sell"] == "B" else fxcorepy.Constants.BUY
 
+    # TRUE_MARKET_CLOSE = 不需要 rate，FXCM 自动以市场价平仓
     request = fx.create_order_request(
         command=fxcorepy.Constants.Commands.CREATE_ORDER,
-        order_type="S",
+        order_type=fxcorepy.Constants.Orders.TRUE_MARKET_CLOSE,
         OFFER_ID=trade["offer_id"],
         ACCOUNT_ID=trade["account_id"],
         BUY_SELL=buy_sell,
-        RATE=0,  # 市价平仓
         AMOUNT=close_amount,
         TRADE_ID=trade_id,
     )
     resp = fx.send_request(request)
 
+    # resp 可能有 order_id 属性，status 不一定存在
+    try:
+        status = resp.status
+    except AttributeError:
+        status = None
+
     _trade_logger.info(
         f"CLOSE POSITION | trade_id={trade_id} | amount={close_amount} "
-        f"| instrument={trade['instrument']} | status={resp.status}"
+        f"| instrument={trade['instrument']} | status={status}"
     )
 
     return {
         "trade_id": trade_id,
-        "status": resp.status,
+        "status": status,
         "closed_amount": close_amount,
     }
 
