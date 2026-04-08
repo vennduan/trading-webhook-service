@@ -270,6 +270,10 @@ def _validate_json(data: Dict[str, Any]) -> Dict[str, Any]:
     if "now_position_amount" in data and "position_size" not in data:
         data = dict(data)
         data["position_size"] = data.pop("now_position_amount")
+    # pre_position / prev_market_position -> prev_position（TradingView 模板兼容）
+    if "pre_position" in data and "prev_position" not in data:
+        data = dict(data)
+        data["prev_position"] = data.pop("pre_position")
 
     # ── token 校验 ─────────────────────────────────────────────
     token = _to_str(data.get("token"))
@@ -335,6 +339,11 @@ def _validate_json(data: Dict[str, Any]) -> Dict[str, Any]:
     # ── position 状态机 ───────────────────────────────────────
     position = _to_str(data.get("position"))
     prev_position = _to_str(data.get("prev_position"))
+    # 未填充的模板变量 -> 空字符串（首次信号/无状态）
+    if position.startswith("{{") and position.endswith("}}"):
+        position = ""
+    if prev_position.startswith("{{") and prev_position.endswith("}}"):
+        prev_position = ""
     trade_action = _determine_action(direction, position, prev_position)
 
     _logger.info(
