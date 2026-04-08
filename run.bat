@@ -1,35 +1,21 @@
 @echo off
 :: Trading Webhook Service 启动脚本
 :: 用法: run.bat
-:: 前提: 设置 FXCM_USERNAME, FXCM_PASSWORD, WEBHOOK_TOKEN 环境变量
+:: 环境变量直接写在这里，确保任何方式启动都能读到
+
+set FXCM_USERNAME=D103538839
+set FXCM_PASSWORD=Rlit6
+set FXCM_CONNECTION=Demo
+set FXCM_URL=www.fxcorporate.com/Hosts.jsp
+set WEBHOOK_TOKEN=fdadfb2d9e06a3b856b2252e1dd74d0367d4da1a396bb5db900ed8935386b1f5
 
 echo ========================================
 echo  Trading Webhook Service
 echo ========================================
 echo.
-
-:: 检查环境变量
-if "%FXCM_USERNAME%"=="" (
-    echo [ERROR] FXCM_USERNAME is not set
-    echo Set it before starting: set FXCM_USERNAME=your_username
-    exit /b 1
-)
-
-if "%FXCM_PASSWORD%"=="" (
-    echo [ERROR] FXCM_PASSWORD is not set
-    echo Set it before starting: set FXCM_PASSWORD=your_password
-    exit /b 1
-)
-
-if "%WEBHOOK_TOKEN%"=="" (
-    echo [ERROR] WEBHOOK_TOKEN is not set
-    echo Set it before starting: set WEBHOOK_TOKEN=your_token
-    exit /b 1
-)
-
 echo [*] FXCM Username: %FXCM_USERNAME%
-echo [*] Connection  : Demo
-echo [*] Port        : 5000
+echo [*] Connection  : %FXCM_CONNECTION%
+echo [*] Port        : 80
 echo [*] Log dir     : logs\
 echo.
 echo Starting server...
