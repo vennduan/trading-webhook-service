@@ -141,8 +141,10 @@ class SessionManager:
         t.join(timeout=5.0)
 
         if t.is_alive():
-            # 会话冻住，强制重连
+            # 会话冻住，销毁 _fx 实例，下次 login 将重建
+            _logger.warning("FXCM session appears frozen (health_check timeout), resetting")
             self._connected = False
+            self._fx = None
             return False
 
         if not result["ok"]:
