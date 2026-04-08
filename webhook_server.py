@@ -198,6 +198,11 @@ def webhook():
             }), 200
 
         # ── 开仓：OPEN_LONG / OPEN_SHORT ─────────────────────────
+        sm = get_session()
+        _logger.warning(
+            f"[DEBUG] before trade: sm.connected={sm.is_connected()} "
+            f"fx={sm._fx is not None}"
+        )
         result = execute_trade(
             symbol=symbol,
             direction=params["direction"],
@@ -206,6 +211,7 @@ def webhook():
             rate=params["rate"],
             trade_id=params.get("trade_id"),
         )
+        _logger.warning(f"[DEBUG] trade result: {result}")
 
         record_trade({
             "symbol": symbol,
@@ -305,6 +311,12 @@ def main():
         f"Starting trading-webhook-service on "
         f"{cfg.server_host}:{cfg.server_port}"
     )
+    # 启动时立即建立 FXCM 连接，避免第一个请求才登录导致假成功
+    sm = get_session()
+    if not sm.ensure_connected():
+        _logger.error("Failed to connect to FXCM at startup. Service will retry on each request.")
+    else:
+        _logger.info("FXCM connection established at startup.")
     app.run(
         host=cfg.server_host,
         port=cfg.server_port,
