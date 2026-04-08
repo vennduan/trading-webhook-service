@@ -470,6 +470,84 @@ def cancel_order(order_id: str) -> Dict[str, Any]:
 
 
 # ──────────────────────────────────────────────────────────────
+# 平仓
+# ──────────────────────────────────────────────────────────────
+
+@retry(max_attempts=2)
+def close_position(trade_id: str, amount: Optional[int] = None) -> Dict[str, Any]:
+    """
+    平掉指定持仓
+    trade_id: FXCM trade_id
+    amount:   平仓数量，不传则全部平
+    """
+    sm = get_session()
+    sm.ensure_connected()
+
+    fx = sm.fx
+    positions = get_positions()
+    trade = next((p for p in positions if p["trade_id"] == trade_id), None)
+    if not trade:
+        raise ValueError(f"Trade {trade_id} not found, no open position")
+
+    close_amount = amount if amount is not None else abs(trade["amount"])
+    # FXCM 平仓用 SELL 关闭多头，用 BUY 关闭空头
+    buy_sell = fxcorepy.Constants.SELL if trade["buy_sell"] == "B" else fxcorepy.Constants.BUY
+
+    request = fx.create_order_request(
+        command=fxcorepy.Constants.Commands.CREATE_ORDER,
+        order_type="S",
+        OFFER_ID=trade["offer_id"],
+        ACCOUNT_ID=trade["account_id"],
+        BUY_SELL=buy_sell,
+        RATE=0,  # 市价平仓
+        AMOUNT=close_amount,
+        TRADE_ID=trade_id,
+    )
+    resp = fx.send_request(request)
+
+    _trade_logger.info(
+        f"CLOSE POSITION | trade_id={trade_id} | amount={close_amount} "
+        f"| instrument={trade['instrument']} | status={resp.status}"
+    )
+
+    return {
+        "trade_id": trade_id,
+        "status": resp.status,
+        "closed_amount": close_amount,
+    }
+
+
+@retry(max_attempts=2)
+def close_all_positions(symbol: Optional[str] = None) -> Dict[str, Any]:
+    """
+    平掉所有持仓，或指定品种的全部持仓
+    symbol: 可选，如 "EUR/USD"，不传则全部平
+    """
+    sm = get_session()
+    sm.ensure_connected()
+
+    fx = sm.fx
+    positions = get_positions()
+    if symbol:
+        fxcm_sym = tv_to_fxcm(symbol)
+        positions = [p for p in positions if tv_to_fxcm(p["instrument"]) == fxcm_sym]
+
+    if not positions:
+        return {"closed": [], "message": "No open positions"}
+
+    closed = []
+    errors = []
+    for pos in positions:
+        try:
+            result = close_position(pos["trade_id"])
+            closed.append({"trade_id": pos["trade_id"], "status": result["status"]})
+        except Exception as e:
+            errors.append({"trade_id": pos["trade_id"], "error": str(e)})
+
+    return {"closed": closed, "errors": errors}
+
+
+# ──────────────────────────────────────────────────────────────
 # 统一入口：按 order_type 分发
 # ──────────────────────────────────────────────────────────────
 

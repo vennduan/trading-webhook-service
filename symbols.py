@@ -39,16 +39,93 @@ def tv_to_fxcm(tv_symbol: str) -> str:
     """
     TradingView 格式 -> FXCM 格式
     EUR/USD -> EUR/USD (FXCM也用 slash 格式，Python API兼容)
+    EURUSD -> EUR/USD (无slash的Forex对需转换)
     XAUUSD -> XAU/USD (无slash的贵金属需转换)
     """
     if not tv_symbol:
         raise ValueError("Symbol cannot be empty")
-    s = tv_symbol.strip()
-    # 无slash的贵金属转换
+    s = tv_symbol.strip().upper()
+
+    # 无slash -> 有slash 批量映射表
     slashless_map = {
+        # Forex (主要货币对)
+        "EURUSD": "EUR/USD",
+        "GBPUSD": "GBP/USD",
+        "USDJPY": "USD/JPY",
+        "USDCHF": "USD/CHF",
+        "AUDUSD": "AUD/USD",
+        "USDCAD": "USD/CAD",
+        "NZDUSD": "NZD/USD",
+        # Forex (交叉盘)
+        "EURJPY": "EUR/JPY",
+        "GBPJPY": "GBP/JPY",
+        "EURGBP": "EUR/GBP",
+        "AUDJPY": "AUD/JPY",
+        "EURCHF": "EUR/CHF",
+        "GBPAUD": "GBP/AUD",
+        "GBPCAD": "GBP/CAD",
+        "GBPNZD": "GBP/NZD",
+        "NZDJPY": "NZD/JPY",
+        "AUDCAD": "AUD/CAD",
+        "AUDCHF": "AUD/CHF",
+        "AUDNZD": "AUD/NZD",
+        "CADJPY": "CAD/JPY",
+        "CADCHF": "CAD/CHF",
+        "CHFJPY": "CHF/JPY",
+        "EURAUD": "EUR/AUD",
+        "EURCAD": "EUR/CAD",
+        "EURNZD": "EUR/NZD",
+        "USDSGD": "USD/SGD",
+        "USDHKD": "USD/HKD",
+        "USDNOK": "USD/NOK",
+        "USDSEK": "USD/SEK",
+        "USDDKK": "USD/DKK",
+        "USDPLN": "USD/PLN",
+        "USDZAR": "USD/ZAR",
+        "USDTRY": "USD/TRY",
+        "USDCNY": "USD/CNY",
+        "USDINR": "USD/INR",
+        "USDMXN": "USD/MXN",
+        # 贵金属
         "XAUUSD": "XAU/USD",
+        "XAGUSD": "XAU/USD",
         "XAUXAG": "XAU/XAG",
         "XAGEUR": "XAU/EUR",
+        # 指数 (TradingView格式 -> FXCM格式)
+        "US30": "US30",
+        "US100": "USTECH",
+        "US500": "US500",
+        "US2000": "US2000",
+        "GER40": "GER40",
+        "GERMAN": "GER40",
+        "UK100": "UK100",
+        "FRA40": "FRA40",
+        "ESP35": "ESP35",
+        "ITA40": "ITA40",
+        "EUSTX50": "EUSTX50",
+        "JPN225": "JPN225",
+        "AUS200": "AUS200",
+        "NAS100": "NAS100",
+        # 大宗商品
+        "NATGAS": "NATGAS",
+        "USOIL": "USOIL",
+        "UKOIL": "UKOIL",
+        "XBRUSD": "XBRUSD",
+        "XTIUSD": "XTIUSD",
+        "COPPER": "COPPER",
+        "CORN": "CORN",
+        "WHEAT": "WHEAT",
+        "SOYBEAN": "SOYBEAN",
+        "SUGAR": "SUGAR",
+        "COFFEE": "COFFEE",
+        "COCOA": "COCOA",
+        "Cotton": "COTTON",
+        # 加密货币
+        "BTCUSD": "BTC/USD",
+        "ETHUSD": "ETH/USD",
+        "LTCUSD": "LTC/USD",
+        "XRPUSD": "XRP/USD",
+        "BCHUSD": "BCH/USD",
     }
     if s in slashless_map:
         return slashless_map[s]

@@ -38,25 +38,64 @@ def parse_tradingview_text(message: str) -> Dict[str, Any]:
     """
     解析 TradingView Pine Script 填充后的纯文本消息
     格式: Ripster EMA Clouds AI Strategy v1 (...)订单BUY@1成交EUR/USD。新策略仓位1
+    支持: 开仓 BUY/SELL, 平仓 CLOSE/EXIT, 做多/做空/出场/入场
     """
     result = {}
 
-    # 打印原始消息，方便调试
-    # 提取方向和手数: 订单BUY@1  或 订单buy@2
-    m = re.search(r'订单([A-Za-z]+)@(\d+)', message)
-    if m:
-        result["direction"] = m.group(1).upper()
-        result["amount"] = int(m.group(2))
+    # ── 1. 识别动作类型（开仓 / 平仓）─────────────────────────────
+    # 平仓信号: 出场, 平仓, EXIT, CLOSE, CLOSEALL, flatten
+    close_patterns = [
+        r'出场', r'平仓', r'EXIT', r'CLOSE', r'FLATTEN',
+        r'多头出场', r'空头出场', r'多头平仓', r'空头平仓',
+    ]
+    is_close = any(re.search(p, message, re.IGNORECASE) for p in close_patterns)
+    if is_close:
+        result["action"] = "CLOSE"
+        # 平仓消息可能带手数或仓位信息
+        m_pos = re.search(r'新策略仓位(\d+)', message)
+        if m_pos:
+            result["position_size"] = int(m_pos.group(1))
+        # 品种提取
+        m_sym = re.search(r'成交([A-Za-z]+/[A-Za-z]+|[A-Za-z]{3,6})', message)
+        if m_sym:
+            result["symbol"] = m_sym.group(1).upper()
+        return result
 
-    # 提取品种: 成交EUR/USD 或 成交XAUUSD
-    m2 = re.search(r'成交([A-Za-z]+/[A-Za-z]+|[A-Za-z]{3,6})', message)
-    if m2:
-        result["symbol"] = m2.group(1).upper()
+    # 开仓信号: 订单BUY@1, 订单SELL@2
+    # 也支持中文: 做多, 做空, 入场
+    open_patterns = [
+        r'订单([A-Za-z]+)@(\d+)',          # 订单BUY@1
+        r'做多@(\d+)',                       # 做多@1
+        r'做空@(\d+)',                       # 做空@1
+        r'入场@(\d+)',                       # 入场@1
+        r'多单开@(\d+)',                     # 多单开@1
+        r'空单开@(\d+)',                     # 空单开@1
+    ]
+    for pat in open_patterns:
+        m = re.search(pat, message)
+        if m:
+            if len(m.groups()) == 2:
+                result["direction"] = m.group(1).upper()
+                result["amount"] = int(m.group(2))
+            else:
+                # 入场/做多/做空 无手数字段，设为默认值
+                result["amount"] = int(m.group(1))
+                # 从消息判断方向
+                if re.search(r'做多|多单开|入场.*多|BUY', message, re.IGNORECASE):
+                    result["direction"] = "BUY"
+                elif re.search(r'做空|空单开|入场.*空|SELL', message, re.IGNORECASE):
+                    result["direction"] = "SELL"
+            break
 
-    # 提取新策略仓位
-    m3 = re.search(r'新策略仓位(\d+)', message)
-    if m3:
-        result["position_size"] = int(m3.group(1))
+    # ── 2. 品种提取 ─────────────────────────────────────────────
+    m_sym = re.search(r'成交([A-Za-z]+/[A-Za-z]+|[A-Za-z]{3,6})', message)
+    if m_sym:
+        result["symbol"] = m_sym.group(1).upper()
+
+    # ── 3. 新策略仓位（持仓数量）──────────────────────────────────
+    m_pos = re.search(r'新策略仓位(\d+)', message)
+    if m_pos:
+        result["position_size"] = int(m_pos.group(1))
 
     return result
 
@@ -76,6 +115,24 @@ def validate_message(data: Any) -> Dict[str, Any]:
         parsed = parse_tradingview_text(text)
         if not parsed:
             raise ValidationError("INVALID_JSON", f"Cannot parse message: {text[:80]}")
+
+        # ── 平仓信号 ───────────────────────────────────────────
+        if parsed.get("action") == "CLOSE":
+            symbol = parsed.get("symbol", "")
+            if symbol and not is_valid_symbol(symbol):
+                raise ValidationError("INVALID_SYMBOL", f"Invalid symbol: {symbol}", "symbol")
+            _logger.info(f"Parsed close message: {parsed}")
+            return {
+                "symbol": symbol,
+                "direction": "CLOSE",
+                "amount": 0,
+                "order_type": "CLOSE",
+                "rate": None,
+                "stop_rate": None,
+                "limit_rate": None,
+                "trade_id": None,
+                "position_size": parsed.get("position_size"),
+            }
 
         if "direction" not in parsed:
             raise ValidationError("MISSING_FIELD", "direction not found in message", "direction")

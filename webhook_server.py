@@ -13,7 +13,7 @@ from logger import setup_logger, set_request_id, clear_request_id, get_logger, m
 from session_manager import get_session
 from validators import validate_message, ValidationError
 from risk_manager import check_risk, record_trade, RiskLimitExceeded
-from trading import execute_trade, get_account
+from trading import execute_trade, get_account, close_all_positions, get_positions
 from forexconnect.errors import RequestFailedError
 
 
@@ -134,6 +134,26 @@ def webhook():
             }), 503
 
         # 核心：下单
+        # ── 平仓信号 ───────────────────────────────────────────
+        if params["direction"] == "CLOSE":
+            symbol = params.get("symbol")
+            close_result = close_all_positions(symbol=symbol if symbol else None)
+            _logger.info(f"Close result: {close_result}")
+
+            record_trade({
+                "symbol": symbol or "ALL",
+                "direction": "CLOSE",
+                "amount": 0,
+                "order_type": "CLOSE",
+                "rate": None,
+                "order_id": None,
+            })
+
+            return jsonify({
+                "status": "success",
+                "message": f"Close executed: {close_result}",
+            }), 200
+        # ── 开仓 ──────────────────────────────────────────────
         result = execute_trade(
             symbol=params["symbol"],
             direction=params["direction"],
