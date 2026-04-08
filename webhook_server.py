@@ -145,7 +145,7 @@ def webhook():
         sm = get_session()
         if not sm.health_check():
             _logger.warning("FXCM session unhealthy, forcing re-login")
-            sm.logout()
+            # health_check 已重置状态，直接重新登录
             if not sm.ensure_connected():
                 return jsonify({
                     "status": "error",

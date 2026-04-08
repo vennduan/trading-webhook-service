@@ -126,10 +126,10 @@ class SessionManager:
         if not self._connected or self._fx is None:
             return False
         try:
-            # 尝试获取一个简单数据验证会话真实可用
             self._fx.get_table(ForexConnect.OFFERS)
             return True
         except Exception:
+            # 会话已死，直接重置状态（不调用 logout，防止卡住）
             self._connected = False
             self._fx = None
             return False
